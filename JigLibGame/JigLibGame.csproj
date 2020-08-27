@@ -1,0 +1,37 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>netcoreapp3.1</TargetFramework>
+        <PublishReadyToRun>false</PublishReadyToRun>
+        <TieredCompilation>false</TieredCompilation>
+        <RootNamespace>JigLibGame</RootNamespace>
+        <AssemblyName>JigLibGame</AssemblyName>
+        <OutputType>Exe</OutputType>
+    </PropertyGroup>
+    <PropertyGroup>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <ApplicationIcon>Icon.ico</ApplicationIcon>
+    </PropertyGroup>
+    <ItemGroup>
+        <None Remove="Icon.ico" />
+        <None Remove="Icon.bmp" />
+    </ItemGroup>
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+        <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+        <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    </PropertyGroup>
+    <ItemGroup>
+        <MonoGameContentReference Include="Content\Content.mgcb" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\HeightmapProcessor\HeightmapProcessor.csproj" />
+        <ProjectReference Include="..\JigLibX\JigLibX.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+      <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.0.1641" />
+      <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.0.1641" />
+    </ItemGroup>
+</Project>
