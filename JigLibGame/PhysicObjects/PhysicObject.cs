@@ -1,93 +1,84 @@
 using System;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework;
-using JigLibX.Physics;
 using JigLibX.Collision;
-using JigLibX.Geometry;
 using JigLibX.Geometry.Primitives;
+using JigLibX.Physics;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
-namespace JiggleGame.PhysicObjects {
-    /// <summary>
-    /// Helps to combine the physics with the graphics.
-    /// </summary>
-    public abstract class PhysicObject : DrawableGameComponent {
-        protected Body body;
-        protected CollisionSkin collision;
+namespace JigLibGame.PhysicObjects
+{
+    public abstract class PhysicObject : DrawableGameComponent
+    {
+        protected Body Body;
+        protected CollisionSkin Collision;
 
-        protected Model model;
-        protected Vector3 color;
+        protected Model Model;
+        protected Vector3 Color;
 
-        protected Vector3 scale = Vector3.One;
+        protected Vector3 Scale = Vector3.One;
 
-        public Body PhysicsBody {
-            get { return body; }
+        public Body PhysicsBody => Body;
+
+        public CollisionSkin PhysicsSkin => Collision;
+
+        protected static Random Random = new Random();
+
+        public PhysicObject(Game game, Model model) : base(game)
+        {
+            Model = model;
+            Color = new Vector3(Random.Next(255), Random.Next(255), Random.Next(255));
+            Color /= 255.0f;
         }
 
-        public CollisionSkin PhysicsSkin {
-            get { return collision; }
+        public PhysicObject(Game game) : base(game)
+        {
+            Model = null;
+            Color = new Vector3(Random.Next(255), Random.Next(255), Random.Next(255));
+            Color /= 255.0f;
         }
 
-        protected static Random random = new Random();
+        protected Vector3 SetMass(float mass)
+        {
+            var primitiveProperties = new PrimitiveProperties(PrimitiveProperties.MassDistributionEnum.Solid, PrimitiveProperties.MassTypeEnum.Density, mass);
 
-        public PhysicObject(Game game, Model model) : base(game) {
-            this.model = model;
-            color = new Vector3(random.Next(255), random.Next(255), random.Next(255));
-            color /= 255.0f;
-        }
-
-        public PhysicObject(Game game) : base(game) {
-            model = null;
-            color = new Vector3(random.Next(255), random.Next(255), random.Next(255));
-            color /= 255.0f;
-        }
-
-        protected Vector3 SetMass(float mass) {
-            PrimitiveProperties primitiveProperties = new PrimitiveProperties(PrimitiveProperties.MassDistributionEnum.Solid, PrimitiveProperties.MassTypeEnum.Density, mass);
-
-            float junk;
-            Vector3 com;
-            Matrix it, itCoM;
-
-            collision.GetMassProperties(primitiveProperties, out junk, out com, out it, out itCoM);
-            body.BodyInertia = itCoM;
-            body.Mass = junk;
+            Collision.GetMassProperties(primitiveProperties, out var junk, out var com, out var it, out var itCoM);
+            Body.BodyInertia = itCoM;
+            Body.Mass = junk;
 
             return com;
         }
 
-        private Matrix[] boneTransforms = null;
-        private int boneCount = 0;
+        private Matrix[] boneTransforms;
+        private int boneCount;
 
         public abstract void ApplyEffects(BasicEffect effect);
 
-        public override void Draw(GameTime gameTime) {
-            if (model != null) {
-                if (boneTransforms == null || boneCount != model.Bones.Count) {
-                    boneTransforms = new Matrix[model.Bones.Count];
-                    boneCount = model.Bones.Count;
+        public override void Draw(GameTime gameTime)
+        {
+            if (Model != null)
+            {
+                if (boneTransforms == null || boneCount != Model.Bones.Count)
+                {
+                    boneTransforms = new Matrix[Model.Bones.Count];
+                    boneCount = Model.Bones.Count;
                 }
 
-                model.CopyAbsoluteBoneTransformsTo(boneTransforms);
+                Model.CopyAbsoluteBoneTransformsTo(boneTransforms);
 
-                Camera camera = ((JiggleGame) Game).Camera;
-                foreach (ModelMesh mesh in model.Meshes) {
-                    foreach (BasicEffect effect in mesh.Effects) {
-                        // the body has an orientation but also the primitives in the collision skin
-                        // owned by the body can be rotated!
-                        if (body.CollisionSkin != null)
-                            effect.World = boneTransforms[mesh.ParentBone.Index] * Matrix.CreateScale(scale) * body.CollisionSkin.GetPrimitiveLocal(0).Transform.Orientation * body.Orientation * Matrix.CreateTranslation(body.Position);
+                var camera = ((JiggleGame) Game).Camera;
+                foreach (var mesh in Model.Meshes)
+                {
+                    foreach (BasicEffect effect in mesh.Effects)
+                    {
+                        if (Body.CollisionSkin != null)
+                            effect.World = boneTransforms[mesh.ParentBone.Index] * Matrix.CreateScale(Scale) * Body.CollisionSkin.GetPrimitiveLocal(0).Transform.Orientation * Body.Orientation * Matrix.CreateTranslation(Body.Position);
                         else
-                            effect.World = boneTransforms[mesh.ParentBone.Index] * Matrix.CreateScale(scale) * body.Orientation * Matrix.CreateTranslation(body.Position);
+                            effect.World = boneTransforms[mesh.ParentBone.Index] * Matrix.CreateScale(Scale) * Body.Orientation * Matrix.CreateTranslation(Body.Position);
 
                         effect.View = camera.View;
                         effect.Projection = camera.Projection;
 
                         ApplyEffects(effect);
-
-                        //if (!this.PhysicsBody.IsActive)
-                        //    effect.Alpha = 0.4f;
-                        //else
-                        //    effect.Alpha = 1.0f;
 
 
                         effect.EnableDefaultLighting();
@@ -98,18 +89,15 @@ namespace JiggleGame.PhysicObjects {
                 }
             }
 
-            if (((JiggleGame) Game).DebugDrawer.Enabled) {
-                wf = collision.GetLocalSkinWireframe();
+            if (((JiggleGame) Game).DebugDrawer.Enabled)
+            {
+                wf = Collision.GetLocalSkinWireframe();
 
-                // if the collision skin was also added to the body
-                // we have to transform the skin wireframe to the body space
-                if (body.CollisionSkin != null) body.TransformWireframe(wf);
+
+                if (Body.CollisionSkin != null) Body.TransformWireframe(wf);
 
                 ((JiggleGame) Game).DebugDrawer.DrawShape(wf);
             }
-
-
-            // base.Draw(gameTime);
         }
 
         private VertexPositionColor[] wf;

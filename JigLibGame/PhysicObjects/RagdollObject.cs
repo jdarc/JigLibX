@@ -2,13 +2,18 @@ using JigLibX.Physics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace JiggleGame.PhysicObjects {
-    public class RagdollObject : PhysicObject {
-        public enum RagdollType {
-            Simple, Complex
+namespace JigLibGame.PhysicObjects
+{
+    public class RagdollObject : PhysicObject
+    {
+        public enum RagdollType
+        {
+            Simple,
+            Complex
         }
 
-        private enum LimbId {
+        private enum LimbId
+        {
             Torso,
             Head,
             UpperLegLeft,
@@ -27,7 +32,8 @@ namespace JiggleGame.PhysicObjects {
             NumLimbs
         }
 
-        private enum JointId {
+        private enum JointId
+        {
             Neck,
             ShoulderLeft,
             ShoulderRight,
@@ -45,23 +51,28 @@ namespace JiggleGame.PhysicObjects {
             NumJoints
         }
 
-        private PhysicObject[] limbs;
-        private HingeJoint[] joints;
+        private readonly PhysicObject[] limbs;
+        private readonly HingeJoint[] joints;
 
-        private int numLimbs;
-        private int numJoints;
+        private readonly int numLimbs;
+        private readonly int numJoints;
 
-        private void DisableCollisions(Body rb0, Body rb1) {
+        private void DisableCollisions(Body rb0, Body rb1)
+        {
             if (rb0.CollisionSkin == null || rb1.CollisionSkin == null) return;
             rb0.CollisionSkin.NonCollidables.Add(rb1.CollisionSkin);
             rb1.CollisionSkin.NonCollidables.Add(rb0.CollisionSkin);
         }
 
-        public RagdollObject(Game game, Model capsule, Model sphere, Model box, RagdollType type, float density) : base(game) {
-            if (type == RagdollType.Complex) {
+        public RagdollObject(Game game, Model capsule, Model sphere, Model box, RagdollType type, float density) : base(game)
+        {
+            if (type == RagdollType.Complex)
+            {
                 numLimbs = (int) LimbId.NumLimbs;
                 numJoints = (int) JointId.NumJoints;
-            } else {
+            }
+            else
+            {
                 numLimbs = (int) LimbId.NumLimbs - 5;
                 numJoints = (int) JointId.NumJoints - 5;
             }
@@ -79,14 +90,19 @@ namespace JiggleGame.PhysicObjects {
             limbs[(int) LimbId.LowerArmLeft] = new CapsuleObject(Game, capsule, 0.06f, 0.2f, Matrix.CreateRotationZ(MathHelper.ToRadians(90)), Vector3.Zero);
             limbs[(int) LimbId.LowerArmRight] = new CapsuleObject(Game, capsule, 0.06f, 0.2f, Matrix.CreateRotationZ(MathHelper.ToRadians(90)), Vector3.Zero);
 
-            if (type == RagdollType.Complex) {
+            if (type == RagdollType.Complex)
+            {
                 limbs[(int) LimbId.FootLeft] = new SphereObject(Game, sphere, 0.07f, Matrix.Identity, Vector3.Zero);
                 limbs[(int) LimbId.FootRight] = new SphereObject(Game, sphere, 0.07f, Matrix.Identity, Vector3.Zero);
                 limbs[(int) LimbId.HandLeft] = new SphereObject(Game, sphere, 0.05f, Matrix.Identity, Vector3.Zero);
                 limbs[(int) LimbId.HandRight] = new SphereObject(Game, sphere, 0.05f, Matrix.Identity, Vector3.Zero);
                 limbs[(int) LimbId.Torso] = new BoxObject(Game, box, new Vector3(0.2f, 0.4f, 0.35f), Matrix.Identity, Vector3.Zero);
                 limbs[(int) LimbId.Hips] = new BoxObject(Game, box, new Vector3(0.2f, 0.2f, 0.35f), Matrix.Identity, Vector3.Zero);
-            } else { limbs[(int) LimbId.Torso] = new BoxObject(Game, box, new Vector3(0.2f, 0.6f, 0.35f), Matrix.Identity, Vector3.Zero); }
+            }
+            else
+            {
+                limbs[(int) LimbId.Torso] = new BoxObject(Game, box, new Vector3(0.2f, 0.6f, 0.35f), Matrix.Identity, Vector3.Zero);
+            }
 
             limbs[(int) LimbId.Head].PhysicsBody.Position = new Vector3(0.03f, 0.5f, 0);
             limbs[(int) LimbId.UpperLegLeft].PhysicsBody.Position = new Vector3(0, -0.4f, 0.12f);
@@ -98,24 +114,29 @@ namespace JiggleGame.PhysicObjects {
             limbs[(int) LimbId.LowerArmLeft].PhysicsBody.Position = new Vector3(0, 0.25f, 0.5f);
             limbs[(int) LimbId.LowerArmRight].PhysicsBody.Position = new Vector3(0, 0.25f, -0.5f);
 
-            if (type == RagdollType.Complex) {
+            if (type == RagdollType.Complex)
+            {
                 limbs[(int) LimbId.FootLeft].PhysicsBody.Position = new Vector3(0.13f, -0.85f, 0.12f);
                 limbs[(int) LimbId.FootRight].PhysicsBody.Position = new Vector3(0.13f, -0.85f, -0.12f);
                 limbs[(int) LimbId.HandLeft].PhysicsBody.Position = new Vector3(0, 0.25f, 0.72f);
                 limbs[(int) LimbId.HandRight].PhysicsBody.Position = new Vector3(0, 0.25f, -0.72f);
                 limbs[(int) LimbId.Torso].PhysicsBody.Position = new Vector3(0, 0.2f, 0.0f);
                 limbs[(int) LimbId.Hips].PhysicsBody.Position = new Vector3(0, -0.1f, 0.0f);
-            } else { limbs[(int) LimbId.Torso].PhysicsBody.Position = new Vector3(0, 0, 0); }
+            }
+            else
+            {
+                limbs[(int) LimbId.Torso].PhysicsBody.Position = new Vector3(0, 0, 0);
+            }
 
 
-            // set up hinge joints
-            float haldWidth = 0.2f;
-            float sidewaysSlack = 0.1f;
-            float damping = 0.5f;
+            var haldWidth = 0.2f;
+            var sidewaysSlack = 0.1f;
+            var damping = 0.5f;
 
-            for (int i = 0; i < numJoints; i++) joints[i] = new HingeJoint();
+            for (var i = 0; i < numJoints; i++) joints[i] = new HingeJoint();
 
-            if (type == RagdollType.Complex) {
+            if (type == RagdollType.Complex)
+            {
                 joints[(int) JointId.Spine].Initialise(limbs[(int) LimbId.Hips].PhysicsBody, limbs[(int) LimbId.Torso].PhysicsBody, new Vector3(0.0f, 0.0f, 1.0f), new Vector3(0.0f, 0.1f, 0.0f), haldWidth, 70.0f, 30.0f, 3.0f * sidewaysSlack, damping);
 
                 joints[(int) JointId.Neck].Initialise(limbs[(int) LimbId.Hips].PhysicsBody, limbs[(int) LimbId.Head].PhysicsBody, new Vector3(0.0f, 0.0f, 1.0f), new Vector3(-0.05f, 0.25f, 0.0f), haldWidth, 50.0f, 20.0f, 3.0f * sidewaysSlack, damping);
@@ -135,7 +156,9 @@ namespace JiggleGame.PhysicObjects {
                 joints[(int) JointId.WristLeft].Initialise(limbs[(int) LimbId.LowerArmLeft].PhysicsBody, limbs[(int) LimbId.HandLeft].PhysicsBody, new Vector3(0.0f, 1.0f, 0.0f), new Vector3(0.0f, 0.0f, 0.12f), haldWidth, 45.0f, 70.0f, 0.01f, damping);
 
                 joints[(int) JointId.WristRight].Initialise(limbs[(int) LimbId.LowerArmRight].PhysicsBody, limbs[(int) LimbId.HandRight].PhysicsBody, new Vector3(0.0f, 1.0f, 0.0f), new Vector3(0.0f, 0.0f, -0.12f), haldWidth, 45.0f, 70.0f, 0.01f, damping);
-            } else {
+            }
+            else
+            {
                 joints[(int) JointId.Neck].Initialise(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.Head].PhysicsBody, new Vector3(0.0f, 0.0f, 1.0f), new Vector3(-0.05f, 0.25f, 0.0f), haldWidth, 50.0f, 20.0f, 3 * sidewaysSlack, damping);
 
                 joints[(int) JointId.ShoulderLeft].Initialise(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.UpperArmLeft].PhysicsBody, new Vector3(1.0f, 0.0f, 0.0f), new Vector3(0.0f, 0.25f, 0.15f), haldWidth, 30.0f, 75.0f, 0.7f, damping);
@@ -159,7 +182,6 @@ namespace JiggleGame.PhysicObjects {
             joints[(int) JointId.ElbowRight].Initialise(limbs[(int) LimbId.UpperArmRight].PhysicsBody, limbs[(int) LimbId.LowerArmRight].PhysicsBody, new Vector3(0.0f, 0.0f, 1.0f), new Vector3(0.0f, 0.0f, -0.13f), haldWidth, 130.0f, 0.0f, sidewaysSlack, damping);
 
 
-            // disable some collisions between adjacent pairs
             DisableCollisions(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.Head].PhysicsBody);
             DisableCollisions(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.UpperLegLeft].PhysicsBody);
             DisableCollisions(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.UpperLegRight].PhysicsBody);
@@ -170,7 +192,8 @@ namespace JiggleGame.PhysicObjects {
             DisableCollisions(limbs[(int) LimbId.UpperArmLeft].PhysicsBody, limbs[(int) LimbId.LowerArmLeft].PhysicsBody);
             DisableCollisions(limbs[(int) LimbId.UpperArmRight].PhysicsBody, limbs[(int) LimbId.LowerArmRight].PhysicsBody);
 
-            if (type == RagdollType.Complex) {
+            if (type == RagdollType.Complex)
+            {
                 DisableCollisions(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.Hips].PhysicsBody);
                 DisableCollisions(limbs[(int) LimbId.LowerLegLeft].PhysicsBody, limbs[(int) LimbId.FootLeft].PhysicsBody);
                 DisableCollisions(limbs[(int) LimbId.LowerLegRight].PhysicsBody, limbs[(int) LimbId.FootRight].PhysicsBody);
@@ -182,7 +205,7 @@ namespace JiggleGame.PhysicObjects {
                 DisableCollisions(limbs[(int) LimbId.Hips].PhysicsBody, limbs[(int) LimbId.UpperArmRight].PhysicsBody);
             }
 
-            // he's not double-jointed...
+
             DisableCollisions(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.LowerLegLeft].PhysicsBody);
             DisableCollisions(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.LowerLegRight].PhysicsBody);
             DisableCollisions(limbs[(int) LimbId.UpperArmLeft].PhysicsBody, limbs[(int) LimbId.UpperArmRight].PhysicsBody);
@@ -196,7 +219,8 @@ namespace JiggleGame.PhysicObjects {
             DisableCollisions(limbs[(int) LimbId.LowerLegLeft].PhysicsBody, limbs[(int) LimbId.Head].PhysicsBody);
             DisableCollisions(limbs[(int) LimbId.LowerLegRight].PhysicsBody, limbs[(int) LimbId.Head].PhysicsBody);
 
-            if (type == RagdollType.Complex) {
+            if (type == RagdollType.Complex)
+            {
                 DisableCollisions(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.FootLeft].PhysicsBody);
                 DisableCollisions(limbs[(int) LimbId.Torso].PhysicsBody, limbs[(int) LimbId.FootRight].PhysicsBody);
                 DisableCollisions(limbs[(int) LimbId.Hips].PhysicsBody, limbs[(int) LimbId.FootLeft].PhysicsBody);
@@ -217,39 +241,46 @@ namespace JiggleGame.PhysicObjects {
                 DisableCollisions(limbs[(int) LimbId.FootRight].PhysicsBody, limbs[(int) LimbId.UpperLegRight].PhysicsBody);
             }
 
-            foreach (HingeJoint joint in joints)
-                if (joint != null)
-                    joint.EnableHinge();
+            foreach (var joint in joints)
+            {
+                joint?.EnableHinge();
+            }
 
-            foreach (PhysicObject limb in limbs)
-                if (limb != null) {
+            foreach (var limb in limbs)
+                if (limb != null)
+                {
                     limb.PhysicsBody.CollisionSkin.SetMaterialProperties(0, new JigLibX.Collision.MaterialProperties(0.2f, 3.0f, 2.0f));
                     Game.Components.Add(limb);
                 }
         }
 
-        public void PutToSleep() {
-            foreach (PhysicObject limb in limbs)
-                if (limb != null)
-                    limb.PhysicsBody.SetInactive();
+        public void PutToSleep()
+        {
+            foreach (var limb in limbs)
+            {
+                limb?.PhysicsBody.SetInactive();
+            }
         }
 
-        private void MoveTorso(Vector3 pos) {
-            Vector3 delta = pos - limbs[(int) LimbId.Torso].PhysicsBody.Position;
-            foreach (PhysicObject limb in limbs)
-                if (limb != null) {
-                    Vector3 origPos = limb.PhysicsBody.Position;
+        private void MoveTorso(Vector3 pos)
+        {
+            var delta = pos - limbs[(int) LimbId.Torso].PhysicsBody.Position;
+            foreach (var limb in limbs)
+                if (limb != null)
+                {
+                    var origPos = limb.PhysicsBody.Position;
                     limb.PhysicsBody.MoveTo(origPos + delta, limb.PhysicsBody.Orientation);
                 }
         }
 
-        public Vector3 Position {
-            set { MoveTorso(value); }
-            get { return limbs[(int) LimbId.Torso].PhysicsBody.Position; }
+        public Vector3 Position
+        {
+            set => MoveTorso(value);
+            get => limbs[(int) LimbId.Torso].PhysicsBody.Position;
         }
 
-        public override void ApplyEffects(BasicEffect effect) {
-            //
+        public override void ApplyEffects(BasicEffect effect)
+        {
         }
     }
 }

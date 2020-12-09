@@ -1,84 +1,60 @@
 using JigLibX.Math;
 using Microsoft.Xna.Framework;
 
-namespace JigLibX.Geometry.Primitives {
-    /// <summary>
-    /// Class Plane
-    /// </summary>
-    public class Plane : Primitive {
+namespace JigLibX.Geometry.Primitives
+{
+    public class Plane : Primitive
+    {
         internal Vector3 normal = Vector3.Zero;
-        private float d = 0.0f;
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        public Plane() : base((int) PrimitiveType.Plane) { }
-
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="n"></param>
-        /// <param name="d"></param>
-        public Plane(Vector3 n, float d) : base((int) PrimitiveType.Plane) {
-            JiggleMath.NormalizeSafe(ref n);
-            normal = n;
-            this.d = d;
+        public Plane() : base((int) PrimitiveType.Plane)
+        {
         }
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="n"></param>
-        /// <param name="pos"></param>
-        public Plane(Vector3 n, Vector3 pos) : base((int) PrimitiveType.Plane) {
+        public Plane(Vector3 n, float d) : base((int) PrimitiveType.Plane)
+        {
             JiggleMath.NormalizeSafe(ref n);
             normal = n;
-            d = -Vector3.Dot(n, pos);
+            D = d;
         }
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="pos0"></param>
-        /// <param name="pos1"></param>
-        /// <param name="pos2"></param>
-        public Plane(Vector3 pos0, Vector3 pos1, Vector3 pos2) : base((int) PrimitiveType.Plane) {
-            Vector3 dr1 = pos1 - pos0;
-            Vector3 dr2 = pos2 - pos0;
+        public Plane(Vector3 n, Vector3 pos) : base((int) PrimitiveType.Plane)
+        {
+            JiggleMath.NormalizeSafe(ref n);
+            normal = n;
+            D = -Vector3.Dot(n, pos);
+        }
+
+        public Plane(Vector3 pos0, Vector3 pos1, Vector3 pos2) : base((int) PrimitiveType.Plane)
+        {
+            var dr1 = pos1 - pos0;
+            var dr2 = pos2 - pos0;
 
             normal = Vector3.Cross(dr1, dr2);
-            float mNLen = normal.Length();
-            if (mNLen < JiggleMath.Epsilon) {
+            var mNLen = normal.Length();
+            if (mNLen < JiggleMath.Epsilon)
+            {
                 normal = Vector3.Up;
-                d = 0.0f;
-            } else {
+                D = 0.0f;
+            }
+            else
+            {
                 normal /= mNLen;
-                d = -Vector3.Dot(normal, pos0);
+                D = -Vector3.Dot(normal, pos0);
             }
         }
 
-        /// <summary>
-        /// Gets or Set normal
-        /// </summary>
-        public Vector3 Normal {
-            get { return normal; }
-            set { normal = value; }
+        public Vector3 Normal
+        {
+            get => normal;
+            set => normal = value;
         }
 
-        /// <summary>
-        /// Gets or Sets d
-        /// </summary>
-        public float D {
-            get { return d; }
-            set { d = value; }
-        }
+        public float D { get; set; }
 
-        /// <summary>
-        /// Clone
-        /// </summary>
-        /// <returns>Primitive</returns>
-        public override Primitive Clone() {
-            Plane newPlane = new Plane(Normal, D);
+        public override Primitive Clone()
+        {
+            var newPlane = new Plane(Normal, D);
             newPlane.Transform = Transform;
             return newPlane;
         }
@@ -86,12 +62,11 @@ namespace JigLibX.Geometry.Primitives {
         private Matrix transformMatrix;
         private Matrix invTransform;
 
-        /// <summary>
-        /// Gets Transform or Sets transformMatrix and invTransform
-        /// </summary>
-        public override Transform Transform {
-            get { return base.Transform; }
-            set {
+        public override Transform Transform
+        {
+            get => base.Transform;
+            set
+            {
                 base.Transform = value;
                 transformMatrix = transform.Orientation;
                 transformMatrix.Translation = transform.Position;
@@ -99,34 +74,20 @@ namespace JigLibX.Geometry.Primitives {
             }
         }
 
-        /// <summary>
-        /// Use a cached version. Gets transformMatrix
-        /// </summary>
-        public override Matrix TransformMatrix {
-            get { return transformMatrix; }
-        }
+        public override Matrix TransformMatrix => transformMatrix;
 
-        /// <summary>
-        /// Use a cached version. Gets invTransform
-        /// </summary>
-        public override Matrix InverseTransformMatrix {
-            get { return invTransform; }
-        }
+        public override Matrix InverseTransformMatrix => invTransform;
 
-        /// <summary>
-        /// SegmentIntersect
-        /// </summary>
-        /// <param name="frac"></param>
-        /// <param name="pos"></param>
-        /// <param name="normal"></param>
-        /// <param name="seg"></param>
-        /// <returns>bool</returns>
-        public override bool SegmentIntersect(out float frac, out Vector3 pos, out Vector3 normal, Segment seg) {
+        public override bool SegmentIntersect(out float frac, out Vector3 pos, out Vector3 normal, Segment seg)
+        {
             bool result;
-            if (result = Intersection.SegmentPlaneIntersection(out frac, seg, this)) {
+            if (result = Intersection.SegmentPlaneIntersection(out frac, seg, this))
+            {
                 pos = seg.GetPoint(frac);
                 normal = Normal;
-            } else {
+            }
+            else
+            {
                 pos = Vector3.Zero;
                 normal = Vector3.Zero;
             }
@@ -134,48 +95,31 @@ namespace JigLibX.Geometry.Primitives {
             return result;
         }
 
-        /// <summary>
-        /// GetVolume
-        /// </summary>
-        /// <returns>0.0f</returns>
-        public override float GetVolume() {
+        public override float GetVolume()
+        {
             return 0.0f;
         }
 
-        /// <summary>
-        /// GetSurfaceArea
-        /// </summary>
-        /// <returns>0.0f</returns>
-        public override float GetSurfaceArea() {
+        public override float GetSurfaceArea()
+        {
             return 0.0f;
         }
 
-        /// <summary>
-        /// GetMassProperties
-        /// </summary>
-        /// <param name="primitiveProperties"></param>
-        /// <param name="mass"></param>
-        /// <param name="centerOfMass"></param>
-        /// <param name="inertiaTensor"></param>
-        public override void GetMassProperties(PrimitiveProperties primitiveProperties, out float mass, out Vector3 centerOfMass, out Matrix inertiaTensor) {
+        public override void GetMassProperties(PrimitiveProperties primitiveProperties, out float mass, out Vector3 centerOfMass, out Matrix inertiaTensor)
+        {
             mass = 0.0f;
             centerOfMass = Vector3.Zero;
             inertiaTensor = Matrix.Identity;
         }
 
-        /// <summary>
-        /// Invert
-        /// </summary>
-        public void Invert() {
+        public void Invert()
+        {
             Vector3.Negate(ref normal, out normal);
         }
 
-        /// <summary>
-        /// GetInverse
-        /// </summary>
-        /// <returns>Plane</returns>
-        public Plane GetInverse() {
-            Plane plane = new Plane(normal, d);
+        public Plane GetInverse()
+        {
+            var plane = new Plane(normal, D);
             plane.Invert();
             return plane;
         }

@@ -4,159 +4,72 @@ using JigLibX.Physics;
 using JigLibX.Geometry;
 using JigLibX.Geometry.Primitives;
 
-namespace JigLibX.Vehicles {
-    /// <summary>
-    /// Basic rigid body to represent a single chassis - at the moment 
-    /// no moving components. You can inherit from this and pass your 
-    /// own version to Car (TODO - tidy up this)
-    /// </summary>
-    public class Chassis {
-        private ChassisBody body;
-        private CollisionSkin collisionSkin;
+namespace JigLibX.Vehicles
+{
+    public sealed class Chassis
+    {
+        private readonly ChassisBody _body;
 
-        private Vector3 dimsMin;
-        private Vector3 dimsMax;
+        private Vector3 _dimsMin;
+        private Vector3 _dimsMax;
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="car"></param>
-        public Chassis(Car car) {
-            body = new ChassisBody(car);
-            collisionSkin = new CollisionSkin(body);
+        public Chassis(Car car)
+        {
+            _body = new ChassisBody(car);
+            Skin = new CollisionSkin(_body);
 
-            body.CollisionSkin = collisionSkin;
+            _body.CollisionSkin = Skin;
 
-            float length = 6.0f;
-            float width = 2.3f;
-            float height = 1.6f;
+            const float length = 6.0f;
+            const float width = 2.3f;
+            const float height = 1.6f;
 
-            Vector3 min = new Vector3(-0.5f * length, 0.0f, -width * 0.5f);
-            Vector3 max = new Vector3(0.5f * length, height, width * 0.5f);
+            var min = new Vector3(-0.5f * length, 0.0f, -width * 0.5f);
+            var max = new Vector3(0.5f * length, height, width * 0.5f);
 
             SetDims(min, max);
         }
 
-        /// <summary>
-        /// Set the dimensions of the chassis, specified by the extreme corner points.
-        /// This will also call Car.SetupDefaultWheels();
-        /// </summary>
-        /// <param name="min"></param>
-        /// <param name="max"></param>
-        public virtual void SetDims(Vector3 min, Vector3 max) {
-            dimsMin = min;
-            dimsMax = max;
-            Vector3 sides = max - min;
-
-            // ratio of top/bottom depths
-            float topBotRatio = 0.4f;
-
-            // the bottom box
-            Vector3 max1 = max;
+        public void SetDims(Vector3 min, Vector3 max)
+        {
+            _dimsMin = min;
+            _dimsMax = max;
+            var sides = max - min;
+            var topBotRatio = 0.4f;
+            
+            var max1 = max;
             max1.Y -= topBotRatio * sides.Y;
-            Box box1 = new Box(min, Matrix.Identity, max1 - min);
-
-            // the top box
-            Vector3 min2 = min;
+            var box1 = new Box(min, Matrix.Identity, max1 - min);
+            
+            var min2 = min;
             min2.Y += topBotRatio * sides.Y;
-            Vector3 max2 = max;
+            var max2 = max;
             min2.X += sides.X * 0.05f;
             max2.X -= sides.X * 0.3f;
             min2.Z *= 0.9f;
             max2.Z *= 0.9f;
 
-            Box box2 = new Box(min2, Matrix.Identity, max2 - min2);
+            var box2 = new Box(min2, Matrix.Identity, max2 - min2);
 
-            collisionSkin.RemoveAllPrimitives();
-            collisionSkin.AddPrimitive(box1, new MaterialProperties(0.3f, 0.5f, 0.3f));
-            collisionSkin.AddPrimitive(box2, new MaterialProperties(0.3f, 0.5f, 0.3f));
+            Skin.RemoveAllPrimitives();
+            Skin.AddPrimitive(box1, new MaterialProperties(0.3f, 0.5f, 0.3f));
+            Skin.AddPrimitive(box2, new MaterialProperties(0.3f, 0.5f, 0.3f));
 
-            body.Car.SetupDefaultWheels();
+            _body.Car.SetupDefaultWheels();
         }
 
-        /// <summary>
-        /// Set the dimensions of the chassis, specified by the extreme corner points.
-        /// This will also call Car.SetupDefaultWheels();
-        /// </summary>
-        /// <param name="min"></param>
-        /// <param name="max"></param>
-        public virtual void GetDims(out Vector3 min, out Vector3 max) {
-            min = dimsMin;
-            max = dimsMax;
+        public void GetDims(out Vector3 min, out Vector3 max)
+        {
+            min = _dimsMin;
+            max = _dimsMax;
         }
 
-        /// <summary>
-        /// Register with physics
-        /// </summary>
-        public void EnableChassis() {
-            body.EnableBody();
-        }
+        public void EnableChassis() => _body.EnableBody();
 
-        /// <summary>
-        /// Remove from the physics system
-        /// </summary>
-        public void DisableChassis() {
-            body.DisableBody();
-        }
+        public void DisableChassis() => _body.DisableBody();
 
-        /// <summary>
-        /// Gets body
-        /// </summary>
-        public Body Body {
-            get { return body; }
-        }
+        public Body Body => _body;
 
-        /// <summary>
-        /// Gets collisionSkin
-        /// </summary>
-        public CollisionSkin Skin {
-            get { return collisionSkin; }
-        }
-    }
-
-    /// <summary>
-    /// Extend tBody to allow for adding on car-specific forces (e.g.
-    /// wheel/drive forces) - i.e. when we get asked to add on forces
-    /// give the car the opportunity to do stuff
-    /// </summary>
-    public class ChassisBody : Body {
-        private Car mCar;
-
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="car"></param>
-        public ChassisBody(Car car) {
-            mCar = car;
-        }
-
-        /// <summary>
-        /// Inherited from tBody
-        /// </summary>
-        /// <param name="dt"></param>
-        public override void AddExternalForces(float dt) {
-            if (mCar == null) return;
-
-            ClearForces();
-            AddGravityToExternalForce();
-            mCar.AddExternalForces(dt);
-        }
-
-        /// <summary>
-        /// PostPhysics
-        /// </summary>
-        /// <param name="dt"></param>
-        public override void PostPhysics(float dt) {
-            if (mCar == null) return;
-
-            mCar.PostPhysics(dt);
-        }
-
-        /// <summary>
-        /// Gets mCar
-        /// </summary>
-        public Car Car {
-            get { return mCar; }
-        }
+        public CollisionSkin Skin { get; }
     }
 }

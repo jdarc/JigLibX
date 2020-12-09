@@ -1,7 +1,14 @@
-namespace JiggleGame {
-    internal static class Program {
-        private static void Main(string[] args) {
-            using (JiggleGame game = new JiggleGame()) { game.Run(); }
+using System;
+
+namespace JigLibGame
+{
+    internal static class Program
+    {
+        [STAThread]
+        private static void Main()
+        {
+            using var game = new JiggleGame();
+            game.Run();
         }
     }
 }

@@ -5,13 +5,14 @@
         <OutputType>Library</OutputType>
         <RootNamespace>JigLibX</RootNamespace>
         <AssemblyName>JigLibX</AssemblyName>
-        <LangVersion>3</LangVersion>
+        <LangVersion>8</LangVersion>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <DefineConstants>TRACE;USE_STACKALLOC</DefineConstants>
     </PropertyGroup>
     <ItemGroup>
       <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.0.1641" />

@@ -1,29 +1,32 @@
-using Microsoft.Xna.Framework;
 using JigLibX.Collision;
-using JigLibX.Physics;
-using JigLibX.Geometry;
 using JigLibX.Geometry.Primitives;
 using JigLibX.Math;
+using JigLibX.Physics;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace JiggleGame.PhysicObjects {
-    public class CapsuleObject : PhysicObject {
-        public CapsuleObject(Game game, Model model, float radius, float length, Matrix orientation, Vector3 position) : base(game, model) {
-            body = new Body();
-            collision = new CollisionSkin(body);
-            collision.AddPrimitive(new Capsule(Vector3.Transform(new Vector3(-0.5f, 0, 0), orientation), orientation, radius, length), (int) MaterialTable.MaterialID.BouncyNormal);
-            body.CollisionSkin = collision;
-            Vector3 com = SetMass(10.0f);
-            body.MoveTo(position + com, Matrix.Identity);
+namespace JigLibGame.PhysicObjects
+{
+    public class CapsuleObject : PhysicObject
+    {
+        public CapsuleObject(Game game, Model model, float radius, float length, Matrix orientation, Vector3 position) : base(game, model)
+        {
+            Body = new Body();
+            Collision = new CollisionSkin(Body);
+            Collision.AddPrimitive(new Capsule(Vector3.Transform(new Vector3(-0.5f, 0, 0), orientation), orientation, radius, length), (int) MaterialTable.MaterialID.BouncyNormal);
+            Body.CollisionSkin = Collision;
+            var com = SetMass(10.0f);
+            Body.MoveTo(position + com, Matrix.Identity);
 
-            collision.ApplyLocalTransform(new Transform(-com, Matrix.Identity));
+            Collision.ApplyLocalTransform(new Transform(-com, Matrix.Identity));
 
-            body.EnableBody();
-            scale = new Vector3(radius, radius, length / 2);
+            Body.EnableBody();
+            Scale = new Vector3(radius, radius, length / 2);
         }
 
-        public override void ApplyEffects(BasicEffect effect) {
-            effect.DiffuseColor = color;
+        public override void ApplyEffects(BasicEffect effect)
+        {
+            effect.DiffuseColor = Color;
         }
     }
 }

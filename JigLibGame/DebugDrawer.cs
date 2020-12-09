@@ -2,29 +2,35 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace JiggleGame {
-    public class DebugDrawer : DrawableGameComponent {
+namespace JigLibGame
+{
+    public class DebugDrawer : DrawableGameComponent
+    {
         private BasicEffect basicEffect;
-        private List<VertexPositionColor> vertexData;
+        private readonly List<VertexPositionColor> vertexData;
 
-        public DebugDrawer(Game game) : base(game) {
+        public DebugDrawer(Game game) : base(game)
+        {
             vertexData = new List<VertexPositionColor>();
         }
 
-        protected override void LoadContent() {
+        protected override void LoadContent()
+        {
             base.LoadContent();
         }
 
-        public override void Initialize() {
+        public override void Initialize()
+        {
             base.Initialize();
 
             basicEffect = new BasicEffect(GraphicsDevice);
         }
 
-        public override void Draw(GameTime gameTime) {
+        public override void Draw(GameTime gameTime)
+        {
             if (vertexData.Count == 0 || !Enabled) return;
 
-            JiggleGame playGround = Game as JiggleGame;
+            var playGround = Game as JiggleGame;
 
             basicEffect.AmbientLightColor = Vector3.One;
             basicEffect.View = playGround.Camera.View;
@@ -32,7 +38,8 @@ namespace JiggleGame {
             basicEffect.VertexColorEnabled = true;
 
 
-            foreach (EffectPass pass in basicEffect.CurrentTechnique.Passes) {
+            foreach (var pass in basicEffect.CurrentTechnique.Passes)
+            {
                 pass.Apply();
 
                 GraphicsDevice.DrawUserPrimitives<VertexPositionColor>(PrimitiveType.LineStrip, vertexData.ToArray(), 0, vertexData.Count - 1);
@@ -43,47 +50,55 @@ namespace JiggleGame {
             base.Draw(gameTime);
         }
 
-        public void DrawShape(List<Vector3> shape, Color color) {
-            if (vertexData.Count > 0) {
-                Vector3 v = vertexData[vertexData.Count - 1].Position;
+        public void DrawShape(List<Vector3> shape, Color color)
+        {
+            if (vertexData.Count > 0)
+            {
+                var v = vertexData[vertexData.Count - 1].Position;
                 vertexData.Add(new VertexPositionColor(v, new Color(0, 0, 0, 0)));
                 vertexData.Add(new VertexPositionColor(shape[0], new Color(0, 0, 0, 0)));
             }
 
-            foreach (Vector3 p in shape) vertexData.Add(new VertexPositionColor(p, color));
+            foreach (var p in shape) vertexData.Add(new VertexPositionColor(p, color));
         }
 
-        public void DrawShape(List<Vector3> shape, Color color, bool closed) {
+        public void DrawShape(List<Vector3> shape, Color color, bool closed)
+        {
             DrawShape(shape, color);
 
-            Vector3 v = shape[0];
+            var v = shape[0];
             vertexData.Add(new VertexPositionColor(v, color));
         }
 
-        public void DrawShape(List<VertexPositionColor> shape) {
-            if (vertexData.Count > 0) {
-                Vector3 v = vertexData[vertexData.Count - 1].Position;
+        public void DrawShape(List<VertexPositionColor> shape)
+        {
+            if (vertexData.Count > 0)
+            {
+                var v = vertexData[vertexData.Count - 1].Position;
                 vertexData.Add(new VertexPositionColor(v, new Color(0, 0, 0, 0)));
                 vertexData.Add(new VertexPositionColor(shape[0].Position, new Color(0, 0, 0, 0)));
             }
 
-            foreach (VertexPositionColor vps in shape) vertexData.Add(vps);
+            foreach (var vps in shape) vertexData.Add(vps);
         }
 
-        public void DrawShape(VertexPositionColor[] shape) {
-            if (vertexData.Count > 0) {
-                Vector3 v = vertexData[vertexData.Count - 1].Position;
+        public void DrawShape(VertexPositionColor[] shape)
+        {
+            if (vertexData.Count > 0)
+            {
+                var v = vertexData[vertexData.Count - 1].Position;
                 vertexData.Add(new VertexPositionColor(v, new Color(0, 0, 0, 0)));
                 vertexData.Add(new VertexPositionColor(shape[0].Position, new Color(0, 0, 0, 0)));
             }
 
-            foreach (VertexPositionColor vps in shape) vertexData.Add(vps);
+            foreach (var vps in shape) vertexData.Add(vps);
         }
 
-        public void DrawShape(List<VertexPositionColor> shape, bool closed) {
+        public void DrawShape(List<VertexPositionColor> shape, bool closed)
+        {
             DrawShape(shape);
 
-            VertexPositionColor v = shape[0];
+            var v = shape[0];
             vertexData.Add(v);
         }
     }

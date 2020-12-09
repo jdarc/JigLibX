@@ -1,38 +1,40 @@
-using Microsoft.Xna.Framework;
 using JigLibX.Collision;
-using JigLibX.Physics;
-using JigLibX.Geometry;
 using JigLibX.Geometry.Primitives;
+using JigLibX.Physics;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace JiggleGame.PhysicObjects {
-    public class TestObject : PhysicObject {
-        public TestObject(Game game, Model model) : base(game, model) {
-            body = new Body();
-            collision = new CollisionSkin(body);
+namespace JigLibGame.PhysicObjects
+{
+    public class TestObject : PhysicObject
+    {
+        public TestObject(Game game, Model model) : base(game, model)
+        {
+            Body = new Body();
+            Collision = new CollisionSkin(Body);
 
-            Box boxMiddle = new Box(new Vector3(-3, 0, -0.5f), Matrix.Identity, new Vector3(6, 1, 1));
-            Box boxLeft = new Box(new Vector3(-3, -3f, -0.5f), Matrix.Identity, new Vector3(1, 4, 1));
-            Box boxRight = new Box(new Vector3(2, -3f, -0.5f), Matrix.Identity, new Vector3(1, 4, 1));
+            var boxMiddle = new Box(new Vector3(-3, 0, -0.5f), Matrix.Identity, new Vector3(6, 1, 1));
+            var boxLeft = new Box(new Vector3(-3, -3f, -0.5f), Matrix.Identity, new Vector3(1, 4, 1));
+            var boxRight = new Box(new Vector3(2, -3f, -0.5f), Matrix.Identity, new Vector3(1, 4, 1));
 
-            collision.AddPrimitive(boxMiddle, new MaterialProperties(0.2f, 0.7f, 0.6f));
-            collision.AddPrimitive(boxLeft, new MaterialProperties(0.2f, 0.7f, 0.6f));
-            collision.AddPrimitive(boxRight, new MaterialProperties(0.2f, 0.7f, 0.6f));
+            Collision.AddPrimitive(boxMiddle, new MaterialProperties(0.2f, 0.7f, 0.6f));
+            Collision.AddPrimitive(boxLeft, new MaterialProperties(0.2f, 0.7f, 0.6f));
+            Collision.AddPrimitive(boxRight, new MaterialProperties(0.2f, 0.7f, 0.6f));
 
-            body.CollisionSkin = collision;
+            Body.CollisionSkin = Collision;
 
 
-            Vector3 com = SetMass(1.0f);
-            // collision.ApplyLocalTransform(new Transform(-com, Matrix.Identity));
+            var com = SetMass(1.0f);
 
-            body.MoveTo(Vector3.Up * 10, Matrix.Identity);
 
-            //body.Immovable = true;
-            body.EnableBody();
+            Body.MoveTo(Vector3.Up * 10, Matrix.Identity);
+
+
+            Body.EnableBody();
         }
 
-        public override void ApplyEffects(BasicEffect effect) {
-            //throw new NotImplementedException();
+        public override void ApplyEffects(BasicEffect effect)
+        {
         }
     }
 }

@@ -3,269 +3,171 @@ using Microsoft.Xna.Framework;
 using JigLibX.Collision;
 using JigLibX.Math;
 
-namespace JigLibX.Physics {
-    /// <summary>
-    /// Basic rigid body - can be used as is, or a derived class can
-    /// over-ride certain behaviours.
-    /// A body can only be added to one physics system at a time!
-    /// </summary>
-    public partial class Body {
-        private enum Activity {
-            Active, Inactive
+namespace JigLibX.Physics
+{
+    public class Body
+    {
+        private enum Activity
+        {
+            Active,
+            Inactive
         }
 
         private bool bodyEnabled;
 
-        internal bool foundIsland = false;
+        internal bool FoundIsland = false;
 
-        // Don't actually own the skin
-        private CollisionSkin collSkin;
-
-        // Prevent velocity updates etc
         private bool immovable;
 
-        // the "working" state
-        internal Transform transform = new Transform();
-        internal TransformRate transformRate = new TransformRate();
-        internal TransformRate transformRateAux = new TransformRate();
+        public Transform Transform;
+        public TransformRate TransformRate;
+        private TransformRate transformRateAux;
 
-        internal Transform oldTransform;
-        internal TransformRate oldTransformRate;
+        public Transform oldTransform;
+        public TransformRate oldTransformRate;
 
-        // Flag that gets set whenever our velocity/angular velocity might have been changed.
-        // Used by physics to speed up checking for activation
-        private bool velChanged;
         private float invMass;
 
-        // the previous state - copied explicitly using CopyCurrentStateToOld.
         private Transform storedTransform;
         private TransformRate storedTransformRate;
 
         private Matrix invOrientation;
         private float mass;
         private bool origImmovable;
-        private bool doShockProcessing;
 
-        // internal, so we can call them by reference
-        internal Matrix bodyInertia; // Inertia in body Space (not necessarily diagonal)
-        internal Matrix worldInertia; // inertia tensor in world space
-        internal Matrix bodyInvInertia; // inverse inertia in body frame
-        internal Matrix worldInvInertia; // Inverse inertia in world frame
+        private Matrix bodyInertia;
+        private Matrix worldInertia;
+        private Matrix bodyInvInertia;
+        internal Matrix worldInvInertia;
 
-        private Vector3 force; // force etc in world frame
-        private Vector3 torque; // torque in world frame
+        private Vector3 force;
+        private Vector3 torque;
 
-        private Activity activity; // for deactivation
-        private float inactiveTime; // gow long we've been still
+        private Activity activity;
+        private float inactiveTime;
 
-        // last position for when trying the deactivate
         private Vector3 lastPositionForDeactivation;
 
-        // last orientation for when trying to deactivate
         private Matrix lastOrientationForDeactivation;
 
-        // How long it takes to go from active to frozen when stationary.
         private float deactivationTime;
 
-        // Velocity below which we're considered still
         private float sqVelocityActivityThreshold;
 
-        // Velocity below which we're considered still - in (radians per sec)^2
         private float sqAngVelocityActivityThreshold;
 
-        // The position stored stored when we need to notify other bodies
         private Vector3 storedPositionForActivation;
 
-        // The list of bodies that need to be activated when we move away from
-        // our stored position
-        private List<Body> bodiesToBeActivatedOnMovement;
+        private readonly List<Body> bodiesToBeActivatedOnMovement;
 
-        // Whether this body can freeze (assuming physics freezing is enabled)
         private bool allowFreezing;
 
-        // List of constraint that act on this body
-        private List<Constraint> constraints = new List<Constraint>();
+        private readonly List<Constraint> constraints = new List<Constraint>();
 
-        // Helper to stop the velocities getting silly.
         private const float VelMax = 100.0f;
         private const float AngVelMax = 50.0f;
 
-        // wether gravity should be applied
-        private bool applyGravity = true;
-
-        /// <summary>
-        /// ExternalData
-        /// </summary>
         public object ExternalData;
 
         private static int idCounter;
         internal int ID;
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        public Body() {
+        public Body()
+        {
             ID = idCounter++;
 
             bodiesToBeActivatedOnMovement = new List<Body>();
             bodyEnabled = false;
-            collSkin = null;
+            CollisionSkin = null;
 
             Mass = 1.0f;
             BodyInertia = Matrix.Identity;
 
-            transform = new Transform();
-            transform.Position = Vector3.Zero;
-            transform.Orientation = Matrix.Identity;
+            Transform = new Transform();
+            Transform.Position = Vector3.Zero;
+            Transform.Orientation = Matrix.Identity;
 
             immovable = false;
             origImmovable = false;
-            doShockProcessing = true;
+            DoShockProcessing = true;
 
             force = Vector3.Zero;
             torque = Vector3.Zero;
 
-            velChanged = true;
+            VelChanged = true;
 
             activity = Activity.Active;
             inactiveTime = 0.0f;
             deactivationTime = 1.0f;
             SetActivityThreshold(0.5f, 20.0f);
             allowFreezing = true;
-            lastPositionForDeactivation = transform.Position;
-            lastOrientationForDeactivation = transform.Orientation;
+            lastPositionForDeactivation = Transform.Position;
+            lastOrientationForDeactivation = Transform.Orientation;
 
             CopyCurrentStateToOld();
         }
 
-        /// <summary>
-        /// Gets or Sets transform
-        /// </summary>
-        public Transform Transform {
-            get { return transform; }
-            set { transform = value; }
+        public Vector3 Position
+        {
+            get => Transform.Position;
+            set => Transform.Position = value;
         }
 
-        /// <summary>
-        /// Gets or Sets transformRate
-        /// </summary>
-        public TransformRate TransformRate {
-            get { return transformRate; }
-            set { transformRate = value; }
+        public Vector3 OldPosition => oldTransform.Position;
+
+        public Matrix Orientation
+        {
+            get => Transform.Orientation;
+            set => Transform.Orientation = value;
         }
 
-        /// <summary>
-        /// Gets oldTransform
-        /// </summary>
-        public Transform OldTransform {
-            get { return oldTransform; }
+        public Matrix OldOrientation => oldTransform.Orientation;
+
+        public Vector3 Velocity
+        {
+            get => TransformRate.Velocity;
+            set => TransformRate.Velocity = value;
         }
 
-        /// <summary>
-        /// Gets oldTransformRate
-        /// </summary>
-        public TransformRate OldTransformRate {
-            get { return oldTransformRate; }
+        public Vector3 VelocityAux
+        {
+            get => transformRateAux.Velocity;
+            set => transformRateAux.Velocity = value;
         }
 
-        /// <summary>
-        /// Gets or Sets transform.Position
-        /// </summary>
-        public Vector3 Position {
-            get { return transform.Position; }
-            set { transform.Position = value; }
+        public Vector3 OldVelocity => oldTransformRate.Velocity;
+
+        public Vector3 AngularVelocity
+        {
+            get => TransformRate.AngularVelocity;
+            set => TransformRate.AngularVelocity = value;
         }
 
-        /// <summary>
-        /// Gets oldTransform.Position
-        /// </summary>
-        public Vector3 OldPosition {
-            get { return oldTransform.Position; }
+        public Vector3 AngularVelocityAux
+        {
+            get => transformRateAux.AngularVelocity;
+            set => transformRateAux.AngularVelocity = value;
         }
 
-        /// <summary>
-        /// Gets or Sets transform.Orientation
-        /// </summary>
-        public Matrix Orientation {
-            get { return transform.Orientation; }
-            set { transform.Orientation = value; }
+        public Vector3 OldAngVel => oldTransformRate.AngularVelocity;
+
+        public Vector3 Force
+        {
+            get => force;
+            set => force = value;
         }
 
-        /// <summary>
-        /// Gets oldTransform.Orientation
-        /// </summary>
-        public Matrix OldOrientation {
-            get { return oldTransform.Orientation; }
+        public Vector3 Torque
+        {
+            get => torque;
+            set => torque = value;
         }
 
-        /// <summary>
-        /// Gets or Sets transformRate.Velocity
-        /// </summary>
-        public Vector3 Velocity {
-            get { return transformRate.Velocity; }
-            set { transformRate.Velocity = value; }
-        }
-
-        /// <summary>
-        /// Gets or Sets transformRateAux.Velocity
-        /// </summary>
-        public Vector3 VelocityAux {
-            get { return transformRateAux.Velocity; }
-            set { transformRateAux.Velocity = value; }
-        }
-
-        /// <summary>
-        /// Gets oldTransformRate.Velocity
-        /// </summary>
-        public Vector3 OldVelocity {
-            get { return oldTransformRate.Velocity; }
-        }
-
-        /// <summary>
-        /// Gets or Sets transformRate.AngularVelocity
-        /// </summary>
-        public Vector3 AngularVelocity {
-            get { return transformRate.AngularVelocity; }
-            set { transformRate.AngularVelocity = value; }
-        }
-
-        /// <summary>
-        /// Gets or Sets transformAux.AngularVelocity
-        /// </summary>
-        public Vector3 AngularVelocityAux {
-            get { return transformRateAux.AngularVelocity; }
-            set { transformRateAux.AngularVelocity = value; }
-        }
-
-        /// <summary>
-        /// Gets oldTransformRate.AngularVelocity
-        /// </summary>
-        public Vector3 OldAngVel {
-            get { return oldTransformRate.AngularVelocity; }
-        }
-
-        /// <summary>
-        /// Gets or Sets force
-        /// </summary>
-        public Vector3 Force {
-            get { return force; }
-            set { force = value; }
-        }
-
-        /// <summary>
-        /// Gets or Sets torque
-        /// </summary>
-        public Vector3 Torque {
-            get { return torque; }
-            set { torque = value; }
-        }
-
-        /// <summary>
-        /// Gets or Sets mass
-        /// </summary>
-        public float Mass {
-            get { return mass; }
-            set {
+        public float Mass
+        {
+            get => mass;
+            set
+            {
                 mass = value;
                 invMass = 1.0f / mass;
                 ClearForces();
@@ -273,48 +175,30 @@ namespace JigLibX.Physics {
             }
         }
 
-        /// <summary>
-        /// Gets or Set invMass
-        /// </summary>
-        public float InverseMass {
-            get { return invMass; }
-            set {
+        public float InverseMass
+        {
+            get => invMass;
+            set
+            {
                 invMass = value;
                 mass = 1.0f / value;
             }
         }
 
-        /// <summary>
-        /// Gets or sets applyGravity
-        /// </summary>
-        public bool ApplyGravity {
-            get { return applyGravity; }
-            set { applyGravity = value; }
-        }
+        public bool ApplyGravity { get; set; } = true;
 
-        /// <summary>
-        /// RemoveConstraint
-        /// </summary>
-        /// <param name="constraint"></param>
-        public void RemoveConstraint(Constraint constraint) {
+        public void RemoveConstraint(Constraint constraint)
+        {
             if (constraints.Contains(constraint)) constraints.Remove(constraint);
         }
 
-        /// <summary>
-        /// AddConstraint
-        /// </summary>
-        /// <param name="constraint"></param>
-        public void AddConstraint(Constraint constraint) {
+        public void AddConstraint(Constraint constraint)
+        {
             if (!constraints.Contains(constraint)) constraints.Add(constraint);
         }
 
-        /// <summary>
-        /// SetBodyInertia
-        /// </summary>
-        /// <param name="xx"></param>
-        /// <param name="yy"></param>
-        /// <param name="zz"></param>
-        public void SetBodyInertia(float xx, float yy, float zz) {
+        public void SetBodyInertia(float xx, float yy, float zz)
+        {
             bodyInertia = Matrix.Identity;
             bodyInertia.M11 = xx;
             bodyInertia.M22 = yy;
@@ -326,13 +210,8 @@ namespace JigLibX.Physics {
             bodyInvInertia.M33 = JiggleMath.SafeInvScalar(zz);
         }
 
-        /// <summary>
-        /// SetBodyInvInertia
-        /// </summary>
-        /// <param name="xx"></param>
-        /// <param name="yy"></param>
-        /// <param name="zz"></param>
-        public void SetBodyInvInertia(float xx, float yy, float zz) {
+        public void SetBodyInvInertia(float xx, float yy, float zz)
+        {
             bodyInvInertia = Matrix.Identity;
             bodyInvInertia.M11 = xx;
             bodyInvInertia.M22 = yy;
@@ -344,24 +223,16 @@ namespace JigLibX.Physics {
             bodyInertia.M33 = JiggleMath.SafeInvScalar(zz);
         }
 
-        /// <summary>
-        /// Called right at the end of the timestep to notify the
-        /// derived classes.
-        /// </summary>
-        /// <param name="dt"></param>
-        public virtual void PostPhysics(float dt) { }
+        public virtual void PostPhysics(float dt)
+        {
+        }
 
-        /// <summary>
-        /// Called right at the beginning of the timestep to notify the
-        /// derived classes.
-        /// </summary>
-        /// <param name="dt">The delta time.</param>
-        public virtual void PrePhysics(float dt) { }
+        public virtual void PrePhysics(float dt)
+        {
+        }
 
-        /// <summary>
-        /// Register with the physics system.
-        /// </summary>
-        public virtual void EnableBody() {
+        public virtual void EnableBody()
+        {
             if (bodyEnabled) return;
             if (PhysicsSystem.CurrentPhysicsSystem == null) return;
 
@@ -369,10 +240,8 @@ namespace JigLibX.Physics {
             PhysicsSystem.CurrentPhysicsSystem.AddBody(this);
         }
 
-        /// <summary>
-        /// Deregiser from the physics system.
-        /// </summary>
-        public virtual void DisableBody() {
+        public virtual void DisableBody()
+        {
             if (!bodyEnabled) return;
             if (PhysicsSystem.CurrentPhysicsSystem == null) return;
 
@@ -380,33 +249,12 @@ namespace JigLibX.Physics {
             PhysicsSystem.CurrentPhysicsSystem.RemoveBody(this);
         }
 
-        /// <summary>
-        /// Are we registered with the physics system?
-        /// </summary>
-        public virtual bool IsBodyEnabled {
-            get { return bodyEnabled; }
-        }
+        public virtual bool IsBodyEnabled => bodyEnabled;
 
-        /// <summary>
-        /// Allowed to return null if this body doesn't engage
-        /// in collisions.
-        /// </summary>
-        public CollisionSkin CollisionSkin {
-            get { return collSkin; }
-            set { collSkin = value; }
-        }
+        public CollisionSkin CollisionSkin { get; set; }
 
-        /// <summary>
-        /// This sets the position (sets the vel to 0), but it also tries
-        /// to make sure that any frozen bodies resting against this one
-        /// get activated if necessary.  Not very efficient. Be a little
-        /// careful about when you call it - it will mess with the physics
-        /// collision list.  Also, after this call the object will be
-        /// active.
-        /// </summary>
-        /// <param name="pos"></param>
-        /// <param name="orientation"></param>
-        public void MoveTo(Vector3 pos, Matrix orientation) {
+        public void MoveTo(Vector3 pos, Matrix orientation)
+        {
             if (bodyEnabled && !IsActive) SetActive();
 
             Position = pos;
@@ -415,98 +263,84 @@ namespace JigLibX.Physics {
             AngularVelocity = Vector3.Zero;
             CopyCurrentStateToOld();
 
-            if (CollisionSkin != null) CollisionSkin.SetTransform(ref oldTransform, ref transform);
+            CollisionSkin?.SetTransform(ref oldTransform, ref Transform);
         }
 
-        /// <summary>
-        /// Implementation updates the velocity/angular rotation with the
-        /// force/torque.
-        /// </summary>
-        /// <param name="dt"></param>
-        public void UpdateVelocity(float dt) {
+        public void UpdateVelocity(float dt)
+        {
             if (immovable || !IsActive) return;
 
-            Vector3 vel;
-            Vector3.Multiply(ref force, dt * invMass, out vel);
-            Vector3.Add(ref transformRate.Velocity, ref vel, out transformRate.Velocity);
+            Vector3.Multiply(ref force, dt * invMass, out var vel);
+            Vector3.Add(ref TransformRate.Velocity, ref vel, out TransformRate.Velocity);
 
-            Vector3 angVel;
-            Vector3.Multiply(ref torque, dt, out angVel);
+            Vector3.Multiply(ref torque, dt, out var angVel);
             Vector3.TransformNormal(ref angVel, ref worldInvInertia, out angVel);
-            Vector3.Add(ref transformRate.AngularVelocity, ref angVel, out transformRate.AngularVelocity);
+            Vector3.Add(ref TransformRate.AngularVelocity, ref angVel, out TransformRate.AngularVelocity);
 
-            // don't quite get this - calculating angMom from angVel, then applying torque to that, then
-            // converting back just results in the simple equation anyway. The extra term just produces
-            // weirdness..
-            // Vector3 angMom = mWorldInertia * mTransformRate.angVelocity;
-            // mTransformRate.angVelocity += mWorldInvInertia * dt * (mTorque - Cross(mTransformRate.angVelocity, mWorldInertia * mTransformRate.angVelocity));
 
-            // TODO implement rotational friction properly
-            if (collSkin != null && collSkin.Collisions.Count >= 1) Vector3.Multiply(ref transformRate.AngularVelocity, 0.99f, out transformRate.AngularVelocity);
+            if (CollisionSkin != null && CollisionSkin.Collisions.Count >= 1)
+                Vector3.Multiply(ref TransformRate.AngularVelocity, 0.99f, out TransformRate.AngularVelocity);
         }
 
-        /// <summary>
-        /// Implementation updates the position/orientation with the
-        /// current velocties. 
-        /// </summary>
-        /// <param name="dt"></param>
-        public void UpdatePosition(float dt) {
+        public void UpdatePosition(float dt)
+        {
             if (immovable || !IsActive) return;
 
-            Vector3 angMomBefore;
-            Vector3.TransformNormal(ref transformRate.AngularVelocity, ref worldInertia, out angMomBefore);
+            Vector3.TransformNormal(ref TransformRate.AngularVelocity, ref worldInertia, out var angMomBefore);
 
-            transform.ApplyTransformRate(transformRate, dt);
+            Transform.ApplyTransformRate(TransformRate, dt);
 
-            Matrix.Transpose(ref transform.Orientation, out invOrientation);
+            Matrix.Transpose(ref Transform.Orientation, out invOrientation);
 
-            // recalculate the world inertia
+
             Matrix.Multiply(ref invOrientation, ref bodyInvInertia, out worldInvInertia);
-            Matrix.Multiply(ref worldInvInertia, ref transform.Orientation, out worldInvInertia);
+            Matrix.Multiply(ref worldInvInertia, ref Transform.Orientation, out worldInvInertia);
 
             Matrix.Multiply(ref invOrientation, ref bodyInertia, out worldInertia);
-            Matrix.Multiply(ref worldInertia, ref transform.Orientation, out worldInertia);
+            Matrix.Multiply(ref worldInertia, ref Transform.Orientation, out worldInertia);
 
-            // conservation of momentum
-            Vector3.TransformNormal(ref angMomBefore, ref worldInvInertia, out transformRate.AngularVelocity);
 
-            if (CollisionSkin != null) CollisionSkin.SetTransform(ref oldTransform, ref transform);
+            Vector3.TransformNormal(ref angMomBefore, ref worldInvInertia, out TransformRate.AngularVelocity);
+
+            CollisionSkin?.SetTransform(ref oldTransform, ref Transform);
         }
 
-        /// <summary>
-        /// Updates the position with the auxilary velocities, and zeros them.
-        /// </summary>
-        /// <param name="dt"></param>
-        public void UpdatePositionWithAux(float dt) {
-            if (immovable || !IsActive) {
+        public void UpdatePositionWithAux(float dt)
+        {
+            if (immovable || !IsActive)
+            {
                 transformRateAux = TransformRate.Zero;
                 return;
             }
 
-            PhysicsSystem physics = PhysicsSystem.CurrentPhysicsSystem;
-            int ga = physics.MainGravityAxis;
+            var physics = PhysicsSystem.CurrentPhysicsSystem;
+            var ga = physics.MainGravityAxis;
 
-            if (ga != -1) {
-                int ga2 = (ga + 1) % 3;
-                if (ga2 == 0) {
+            if (ga != -1)
+            {
+                var ga2 = (ga + 1) % 3;
+                if (ga2 == 0)
+                {
                     transformRateAux.Velocity.X *= 0.1f;
                     transformRateAux.Velocity.Y *= 0.1f;
-                } else if (ga2 == 1) {
+                }
+                else if (ga2 == 1)
+                {
                     transformRateAux.Velocity.Y *= 0.1f;
                     transformRateAux.Velocity.Z *= 0.1f;
-                } else if (ga2 == 2) {
+                }
+                else if (ga2 == 2)
+                {
                     transformRateAux.Velocity.Z *= 0.1f;
                     transformRateAux.Velocity.X *= 0.1f;
                 }
             }
 
-            Vector3 angMomBefore;
-            Vector3.TransformNormal(ref transformRate.AngularVelocity, ref worldInertia, out angMomBefore);
+            Vector3.TransformNormal(ref TransformRate.AngularVelocity, ref worldInertia, out var angMomBefore);
 
-            TransformRate rate;
-            TransformRate.Add(ref transformRate, ref transformRateAux, out rate);
+            TransformRate.Add(ref TransformRate, ref transformRateAux, out var rate);
 
-            transform.ApplyTransformRate(ref rate, dt);
+            Transform.ApplyTransformRate(ref rate, dt);
 
             transformRateAux.AngularVelocity.X = 0.0f;
             transformRateAux.AngularVelocity.Y = 0.0f;
@@ -515,620 +349,417 @@ namespace JigLibX.Physics {
             transformRateAux.Velocity.Y = 0.0f;
             transformRateAux.Velocity.Z = 0.0f;
 
-            Matrix.Transpose(ref transform.Orientation, out invOrientation);
+            Matrix.Transpose(ref Transform.Orientation, out invOrientation);
 
-            // recalculate the world inertia
-            //worldInvInertia = transform.Orientation * bodyInvInertia * invOrientation;
+
             Matrix.Multiply(ref invOrientation, ref bodyInvInertia, out worldInvInertia);
-            Matrix.Multiply(ref worldInvInertia, ref transform.Orientation, out worldInvInertia);
+            Matrix.Multiply(ref worldInvInertia, ref Transform.Orientation, out worldInvInertia);
 
-            //worldInertia = transform.Orientation * bodyInertia * invOrientation;
+
             Matrix.Multiply(ref invOrientation, ref bodyInertia, out worldInertia);
-            Matrix.Multiply(ref worldInertia, ref transform.Orientation, out worldInertia);
+            Matrix.Multiply(ref worldInertia, ref Transform.Orientation, out worldInertia);
 
-            // conservation of momentum
-            Vector3.TransformNormal(ref angMomBefore, ref worldInvInertia, out transformRate.AngularVelocity);
 
-            if (CollisionSkin != null) CollisionSkin.SetTransform(ref oldTransform, ref transform);
+            Vector3.TransformNormal(ref angMomBefore, ref worldInvInertia, out TransformRate.AngularVelocity);
+
+            CollisionSkin?.SetTransform(ref oldTransform, ref Transform);
         }
 
-        /// <summary>
-        /// Used by physics to temporarily make an object immovable -
-        /// needs to restore afterwards!
-        /// </summary>
-        public void InternalSetImmovable() {
+        public void InternalSetImmovable()
+        {
             origImmovable = immovable;
             immovable = true;
         }
 
-        /// <summary>
-        /// Used by physics to temporarily make an object immovable -
-        /// needs to restore afterwars!
-        /// </summary>
-        internal void InternalRestoreImmovable() {
-            immovable = origImmovable;
-        }
+        internal void InternalRestoreImmovable() => immovable = origImmovable;
 
-        /// <summary>
-        /// Gets velChanged
-        /// </summary>
-        public bool VelChanged {
-            get { return velChanged; }
-        }
+        public bool VelChanged { get; private set; }
 
-        /// <summary>
-        /// Sets velChanged to false
-        /// </summary>
-        public void ClearVelChanged() {
-            velChanged = false;
-        }
+        public void ClearVelChanged() => VelChanged = false;
 
-        /// <summary>
-        /// Gets or Sets bodyInertia
-        /// </summary>
-        public Matrix BodyInertia {
-            get { return bodyInertia; }
-            set {
+        public Matrix BodyInertia
+        {
+            get => bodyInertia;
+            set
+            {
                 bodyInertia = value;
                 Matrix.Invert(ref value, out bodyInvInertia);
             }
         }
 
-        /// <summary>
-        /// Gets or Sets bodyInvInertia
-        /// </summary>
-        public Matrix BodyInvInertia {
-            get { return bodyInvInertia; }
-            set {
+        public Matrix BodyInvInertia
+        {
+            get => bodyInvInertia;
+            set
+            {
                 bodyInvInertia = value;
                 Matrix.Invert(ref value, out bodyInertia);
             }
         }
 
-        /// <summary>
-        /// Gets worldInertia
-        /// </summary>
-        public Matrix WorldInertia {
-            get { return worldInertia; }
-        }
+        public Matrix WorldInertia => worldInertia;
 
-        /// <summary>
-        /// Gets worldInvInertia
-        /// </summary>
-        public Matrix WorldInvInertia {
-            get { return worldInvInertia; }
-        }
+        public Matrix WorldInvInertia => worldInvInertia;
 
-        /// <summary>
-        /// Ensures that this object never moves, and reduces collision
-        /// checking.
-        /// </summary>
-        public bool Immovable {
-            get { return immovable; }
-            set {
+        public bool Immovable
+        {
+            get => immovable;
+            set
+            {
                 immovable = value;
                 origImmovable = immovable;
             }
         }
 
-        /// <summary>
-        /// Gets activity (bool)
-        /// </summary>
-        public bool IsActive {
-            get { return activity == Activity.Active; }
-        }
+        public bool IsActive => activity == Activity.Active;
 
-        /// <summary>
-        /// Make the body active.
-        /// </summary>
-        public void SetActive() {
+        public void SetActive()
+        {
             if (activity == Activity.Active) return;
             inactiveTime = 0.0f;
             activity = Activity.Active;
         }
 
-        /// <summary>
-        /// SetInactive
-        /// </summary>
-        public void SetInactive() {
-            if (allowFreezing && PhysicsSystem.CurrentPhysicsSystem.IsFreezingEnabled) {
+        public void SetInactive()
+        {
+            if (allowFreezing && PhysicsSystem.CurrentPhysicsSystem.IsFreezingEnabled)
+            {
                 inactiveTime = deactivationTime;
                 activity = Activity.Inactive;
             }
         }
 
-        ///// <summary>
-        ///// Damp movement as the body approaches deactivation
-        ///// </summary>
-        //public void DampForDeactivation()
-        //{
-        //    float frac = inactiveTime / deactivationTime;
-
-        //    // r = 1 means don't ever damp
-        //    // r = 0.5 means start to damp when half way
-        //    float r = 0.5f;
-
-        //    if (frac < r) return;
-
-        //    float scale = 1.0f - ((frac - r) / (1.0f - r));
-        //    scale = MathHelper.Clamp(scale, 0.0f, 1.0f);
-
-        //    #region REFERENCE: transformRate.Velocity *= scale;
-        //    Vector3.Multiply(ref transformRate.Velocity, scale, out transformRate.Velocity);
-        //    #endregion
-
-        //    #region REFERENCE: transformRate.AngularVelocity *= scale;
-        //    Vector3.Multiply(ref transformRate.AngularVelocity, scale, out transformRate.AngularVelocity);
-        //    #endregion
-        //}
-
-        /// <summary>
-        /// Indicates if the velocity is above the threshold for freezing
-        /// </summary>
-        /// <returns>bool</returns>
-        public bool GetShouldBeActive() {
+        public bool GetShouldBeActive()
+        {
             if (inactiveTime >= deactivationTime)
                 return false;
             else
                 return true;
         }
 
-        /// <summary>
-        /// Damp movement as the body approaches deactivation
-        /// </summary>
-        public void DampForDeactivation() {
-            float frac = inactiveTime / deactivationTime;
+        public void DampForDeactivation()
+        {
+            var frac = inactiveTime / deactivationTime;
 
-            // r = 1 means don't ever damp
-            // r = 0.5 means start to damp when half way
-            float r = 0.5f;
+
+            var r = 0.5f;
 
             if (frac < r) return;
 
-            float scale = 1.0f - (frac - r) / (1.0f - r);
+            var scale = 1.0f - (frac - r) / (1.0f - r);
             scale = MathHelper.Clamp(scale, 0.0f, 1.0f);
 
-            // the idea is to damp the body but not below the threshold for deactivation
-            float frac0 = transformRate.Velocity.LengthSquared() * scale * scale / sqVelocityActivityThreshold;
-            float frac1 = transformRate.AngularVelocity.LengthSquared() * scale * scale / sqAngVelocityActivityThreshold;
 
-            if (frac0 > 1.0f) Vector3.Multiply(ref transformRate.Velocity, scale, out transformRate.Velocity);
-            if (frac1 > 1.0f) Vector3.Multiply(ref transformRate.AngularVelocity, scale, out transformRate.AngularVelocity);
+            var frac0 = TransformRate.Velocity.LengthSquared() * scale * scale / sqVelocityActivityThreshold;
+            var frac1 = TransformRate.AngularVelocity.LengthSquared() * scale * scale / sqAngVelocityActivityThreshold;
+
+            if (frac0 > 1.0f) Vector3.Multiply(ref TransformRate.Velocity, scale, out TransformRate.Velocity);
+            if (frac1 > 1.0f)
+                Vector3.Multiply(ref TransformRate.AngularVelocity, scale, out TransformRate.AngularVelocity);
         }
 
-        /// <summary>
-        /// UpdateDeactivation
-        /// </summary>
-        /// <param name="dt"></param>
-        public void UpdateDeactivation(float dt) {
-            if (transformRate.Velocity.LengthSquared() > sqVelocityActivityThreshold || transformRate.AngularVelocity.LengthSquared() > sqAngVelocityActivityThreshold)
+        public void UpdateDeactivation(float dt)
+        {
+            if (TransformRate.Velocity.LengthSquared() > sqVelocityActivityThreshold || TransformRate.AngularVelocity.LengthSquared() > sqAngVelocityActivityThreshold)
                 inactiveTime = 0.0f;
             else
                 inactiveTime += dt;
         }
 
-        /// <summary>
-        /// GetShouldBeActiveAux
-        /// </summary>
-        /// <returns>bool</returns>
-        public bool GetShouldBeActiveAux() {
+        public bool GetShouldBeActiveAux()
+        {
             return transformRateAux.Velocity.LengthSquared() > sqVelocityActivityThreshold || transformRateAux.AngularVelocity.LengthSquared() > sqAngVelocityActivityThreshold;
         }
 
-        /// <summary>
-        /// Set how long it takes to deactivate.
-        /// </summary>
-        /// <param name="seconds"></param>
-        public void SetDeactivationTime(float seconds) {
+        public void SetDeactivationTime(float seconds)
+        {
             deactivationTime = seconds;
         }
 
-        /// <summary>
-        /// Set what the velocity threshold is for activation.
-        /// rot is in deg per second.
-        /// </summary>
-        /// <param name="vel"></param>
-        /// <param name="angVel"></param>
-        public void SetActivityThreshold(float vel, float angVel) {
+        public void SetActivityThreshold(float vel, float angVel)
+        {
             sqVelocityActivityThreshold = vel * vel;
             sqAngVelocityActivityThreshold = MathHelper.ToRadians(angVel) * MathHelper.ToRadians(angVel);
         }
 
-        /// <summary>
-        /// Allows getting/setting of whether this body ever freezes
-        /// </summary>
-        public bool AllowFreezing {
-            get { return allowFreezing; }
-            set {
+        public bool AllowFreezing
+        {
+            get => allowFreezing;
+            set
+            {
                 allowFreezing = value;
-                // ??
+
                 if (!value) SetActive();
             }
         }
 
-        /// <summary>
-        /// Bodies that use a lot of constraints don't behave very well during the
-        /// physics shock step, so they can bypass it.
-        /// </summary>
-        public bool DoShockProcessing {
-            get { return doShockProcessing; }
-            set { doShockProcessing = value; }
+        public bool DoShockProcessing { get; set; }
+
+        public void LimitVel()
+        {
+            if (!(TransformRate.Velocity.X < -VelMax) && !(TransformRate.Velocity.X > VelMax) && !(TransformRate.Velocity.Y < -VelMax) && !(TransformRate.Velocity.Y > VelMax) && !(TransformRate.Velocity.Z < -VelMax) && !(TransformRate.Velocity.Z > VelMax)) return;
+            float vMin;
+            float vMax;
+                
+            if (TransformRate.Velocity.X < TransformRate.Velocity.Y)
+                vMin = TransformRate.Velocity.X < TransformRate.Velocity.Z ? TransformRate.Velocity.X : TransformRate.Velocity.Z;
+            else
+                vMin = TransformRate.Velocity.Y < TransformRate.Velocity.Z ? TransformRate.Velocity.Y : TransformRate.Velocity.Z;
+
+
+            if (TransformRate.Velocity.X > TransformRate.Velocity.Y)
+                vMax = TransformRate.Velocity.X > TransformRate.Velocity.Z ? TransformRate.Velocity.X : TransformRate.Velocity.Z;
+            else
+                vMax = TransformRate.Velocity.Y > TransformRate.Velocity.Z ? TransformRate.Velocity.Y : TransformRate.Velocity.Z;
+
+
+            var dMin = vMin < -VelMax ? vMin + VelMax : 0f;
+            var dMax = vMax > VelMax ? vMax - VelMax : 0f;
+            dMin = dMin < 0 ? -dMin : dMin;
+
+            dMax = dMax < 0 ? -dMax : dMax;
+
+
+            var scaleFactor = dMin > dMax ? -VelMax / vMin : VelMax / vMax;
+
+
+            TransformRate.Velocity.X *= scaleFactor;
+            TransformRate.Velocity.Y *= scaleFactor;
+            TransformRate.Velocity.Z *= scaleFactor;
         }
 
-        /// <summary>
-        /// LimitVel
-        /// </summary>
-        public void LimitVel() {
-            //if at least one velocity component violates the max velocity
-            if (transformRate.Velocity.X < -VelMax || transformRate.Velocity.X > VelMax || transformRate.Velocity.Y < -VelMax || transformRate.Velocity.Y > VelMax || transformRate.Velocity.Z < -VelMax || transformRate.Velocity.Z > VelMax) {
+        public void LimitAngVel()
+        {
+            if (TransformRate.AngularVelocity.X < -AngVelMax || TransformRate.AngularVelocity.X > AngVelMax || TransformRate.AngularVelocity.Y < -AngVelMax || TransformRate.AngularVelocity.Y > AngVelMax || TransformRate.AngularVelocity.Z < -AngVelMax || TransformRate.AngularVelocity.Z > AngVelMax)
+            {
                 float v_min, v_max, dMin, dMax, scaleFactor;
 
-                //determine minimum
-                if (transformRate.Velocity.X < transformRate.Velocity.Y)
-                    v_min = transformRate.Velocity.X < transformRate.Velocity.Z ? transformRate.Velocity.X : transformRate.Velocity.Z;
+
+                if (TransformRate.AngularVelocity.X < TransformRate.AngularVelocity.Y)
+                    v_min = TransformRate.AngularVelocity.X < TransformRate.AngularVelocity.Z ? TransformRate.AngularVelocity.X : TransformRate.AngularVelocity.Z;
                 else
-                    v_min = transformRate.Velocity.Y < transformRate.Velocity.Z ? transformRate.Velocity.Y : transformRate.Velocity.Z;
+                    v_min = TransformRate.AngularVelocity.Y < TransformRate.AngularVelocity.Z ? TransformRate.AngularVelocity.Y : TransformRate.AngularVelocity.Z;
 
-                //determine maximum
-                if (transformRate.Velocity.X > transformRate.Velocity.Y)
-                    v_max = transformRate.Velocity.X > transformRate.Velocity.Z ? transformRate.Velocity.X : transformRate.Velocity.Z;
+
+                if (TransformRate.AngularVelocity.X > TransformRate.AngularVelocity.Y)
+                    v_max = TransformRate.AngularVelocity.X > TransformRate.AngularVelocity.Z ? TransformRate.AngularVelocity.X : TransformRate.AngularVelocity.Z;
                 else
-                    v_max = transformRate.Velocity.Y > transformRate.Velocity.Z ? transformRate.Velocity.Y : transformRate.Velocity.Z;
-
-                //calculate divergence
-                dMin = v_min < -VelMax ? v_min + VelMax : 0f;
-                dMax = v_max > VelMax ? v_max - VelMax : 0f;
-                dMin = dMin < 0 ? -dMin : dMin;
-
-                dMax = dMax < 0 ? -dMax : dMax;
-
-                //calculate scaling factor
-                scaleFactor = dMin > dMax ? -VelMax / v_min : VelMax / v_max;
-
-                //rescale velcocity to match max velocity
-                transformRate.Velocity.X *= scaleFactor;
-                transformRate.Velocity.Y *= scaleFactor;
-                transformRate.Velocity.Z *= scaleFactor;
-            }
-        }
-
-        /// <summary>
-        /// LimitAngVel
-        /// </summary>
-        public void LimitAngVel() {
-            //float fX = System.Math.Abs(transformRate.AngularVelocity.X) / AngVelMax;
-            //float fY = System.Math.Abs(transformRate.AngularVelocity.Y) / AngVelMax;
-            //float fZ = System.Math.Abs(transformRate.AngularVelocity.Z) / AngVelMax;
-
-            //float f = MathHelper.Max(fX, fY);
-            //f = MathHelper.Max(f, fZ);
-
-            //if (f > 1.0f)
-            //    #region REFERENCE: transformRate.AngularVelocity /= f;
-            //    Vector3.Divide(ref transformRate.AngularVelocity, f, out transformRate.AngularVelocity);
-            //    #endregion
+                    v_max = TransformRate.AngularVelocity.Y > TransformRate.AngularVelocity.Z ? TransformRate.AngularVelocity.Y : TransformRate.AngularVelocity.Z;
 
 
-            //if at least one angular velocity component violates the max angular velocity
-            if (transformRate.AngularVelocity.X < -AngVelMax || transformRate.AngularVelocity.X > AngVelMax || transformRate.AngularVelocity.Y < -AngVelMax || transformRate.AngularVelocity.Y > AngVelMax || transformRate.AngularVelocity.Z < -AngVelMax || transformRate.AngularVelocity.Z > AngVelMax) {
-                float v_min, v_max, dMin, dMax, scaleFactor;
-
-                //determine minimum
-                if (transformRate.AngularVelocity.X < transformRate.AngularVelocity.Y)
-                    v_min = transformRate.AngularVelocity.X < transformRate.AngularVelocity.Z ? transformRate.AngularVelocity.X : transformRate.AngularVelocity.Z;
-                else
-                    v_min = transformRate.AngularVelocity.Y < transformRate.AngularVelocity.Z ? transformRate.AngularVelocity.Y : transformRate.AngularVelocity.Z;
-
-                //determine maximum
-                if (transformRate.AngularVelocity.X > transformRate.AngularVelocity.Y)
-                    v_max = transformRate.AngularVelocity.X > transformRate.AngularVelocity.Z ? transformRate.AngularVelocity.X : transformRate.AngularVelocity.Z;
-                else
-                    v_max = transformRate.AngularVelocity.Y > transformRate.AngularVelocity.Z ? transformRate.AngularVelocity.Y : transformRate.AngularVelocity.Z;
-
-                //calculate divergence
                 dMin = v_min < -AngVelMax ? v_min + AngVelMax : 0f;
                 dMax = v_max > AngVelMax ? v_max - AngVelMax : 0f;
                 dMin = dMin < 0 ? -dMin : dMin;
 
                 dMax = dMax < 0 ? -dMax : dMax;
 
-                //calculate scaling factor
+
                 scaleFactor = dMin > dMax ? -AngVelMax / v_min : AngVelMax / v_max;
 
-                //rescale angular velcocity to match max angular velocity
-                transformRate.AngularVelocity.X *= scaleFactor;
-                transformRate.AngularVelocity.Y *= scaleFactor;
-                transformRate.AngularVelocity.Z *= scaleFactor;
+
+                TransformRate.AngularVelocity.X *= scaleFactor;
+                TransformRate.AngularVelocity.Y *= scaleFactor;
+                TransformRate.AngularVelocity.Z *= scaleFactor;
             }
         }
 
-        /// <summary>
-        /// Returns the velocity of a point at body-relative position
-        /// (in world frame) relPos
-        /// </summary>
-        /// <param name="relPos"></param>
-        /// <returns>Vector3</returns>
-        public Vector3 GetVelocity(Vector3 relPos) {
-            return new Vector3(transformRate.Velocity.X + transformRate.AngularVelocity.Y * relPos.Z - transformRate.AngularVelocity.Z * relPos.Y, transformRate.Velocity.Y + transformRate.AngularVelocity.Z * relPos.X - transformRate.AngularVelocity.X * relPos.Z, transformRate.Velocity.Z + transformRate.AngularVelocity.X * relPos.Y - transformRate.AngularVelocity.Y * relPos.X);
+        public Vector3 GetVelocity(Vector3 relPos)
+        {
+            return new Vector3(TransformRate.Velocity.X + TransformRate.AngularVelocity.Y * relPos.Z - TransformRate.AngularVelocity.Z * relPos.Y, TransformRate.Velocity.Y + TransformRate.AngularVelocity.Z * relPos.X - TransformRate.AngularVelocity.X * relPos.Z, TransformRate.Velocity.Z + TransformRate.AngularVelocity.X * relPos.Y - TransformRate.AngularVelocity.Y * relPos.X);
         }
 
-        /// <summary>
-        /// Returns the velocity of a point at body-relative position
-        /// (in world frame) relPos
-        /// </summary>
-        /// <param name="relPos"></param>
-        /// <param name="result"></param>
-        public void GetVelocity(ref Vector3 relPos, out Vector3 result) {
-            result.X = transformRate.Velocity.X + transformRate.AngularVelocity.Y * relPos.Z - transformRate.AngularVelocity.Z * relPos.Y;
-            result.Y = transformRate.Velocity.Y + transformRate.AngularVelocity.Z * relPos.X - transformRate.AngularVelocity.X * relPos.Z;
-            result.Z = transformRate.Velocity.Z + transformRate.AngularVelocity.X * relPos.Y - transformRate.AngularVelocity.Y * relPos.X;
+        public void GetVelocity(ref Vector3 relPos, out Vector3 result)
+        {
+            result.X = TransformRate.Velocity.X + TransformRate.AngularVelocity.Y * relPos.Z - TransformRate.AngularVelocity.Z * relPos.Y;
+            result.Y = TransformRate.Velocity.Y + TransformRate.AngularVelocity.Z * relPos.X - TransformRate.AngularVelocity.X * relPos.Z;
+            result.Z = TransformRate.Velocity.Z + TransformRate.AngularVelocity.X * relPos.Y - TransformRate.AngularVelocity.Y * relPos.X;
         }
 
-        /// <summary>
-        /// As GetVelocity but just uses the aux velocities
-        /// </summary>
-        /// <param name="relPos"></param>
-        /// <returns>Vector3</returns>
-        public Vector3 GetVelocityAux(Vector3 relPos) {
+        public Vector3 GetVelocityAux(Vector3 relPos)
+        {
             return new Vector3(transformRateAux.Velocity.X + transformRateAux.AngularVelocity.Y * relPos.Z - transformRateAux.AngularVelocity.Z * relPos.Y, transformRateAux.Velocity.Y + transformRateAux.AngularVelocity.Z * relPos.X - transformRateAux.AngularVelocity.X * relPos.Z, transformRateAux.Velocity.Z + transformRateAux.AngularVelocity.X * relPos.Y - transformRateAux.AngularVelocity.Y * relPos.X);
         }
 
-        /// <summary>
-        /// As GetVelocity but just uses the aux velocities
-        /// </summary>
-        /// <param name="relPos"></param>
-        /// <param name="result"></param>
-        public void GetVelocityAux(ref Vector3 relPos, out Vector3 result) {
+        public void GetVelocityAux(ref Vector3 relPos, out Vector3 result)
+        {
             result = new Vector3(transformRateAux.Velocity.X + transformRateAux.AngularVelocity.Y * relPos.Z - transformRateAux.AngularVelocity.Z * relPos.Y, transformRateAux.Velocity.Y + transformRateAux.AngularVelocity.Z * relPos.X - transformRateAux.AngularVelocity.X * relPos.Z, transformRateAux.Velocity.Z + transformRateAux.AngularVelocity.X * relPos.Y - transformRateAux.AngularVelocity.Y * relPos.X);
         }
 
-        /// <summary>
-        /// Adds the other body to the list of bodies to be activated if
-        /// this body moves more than a certain distance from either a
-        /// previously stored position, or the position passed in.
-        /// </summary>
-        /// <param name="pos"></param>
-        /// <param name="otherBody"></param>
-        public void AddMovementActivation(Vector3 pos, Body otherBody) {
+        public void AddMovementActivation(Vector3 pos, Body otherBody)
+        {
             if (bodiesToBeActivatedOnMovement.Contains(otherBody)) return;
-
             if (bodiesToBeActivatedOnMovement.Count == 0) storedPositionForActivation = pos;
-
             bodiesToBeActivatedOnMovement.Add(otherBody);
         }
 
-        /// <summary>
-        /// SetOrientation
-        /// </summary>
-        /// <param name="orient"></param>
-        public void SetOrientation(Matrix orient) {
-            transform.Orientation = orient;
-            Matrix.Transpose(ref transform.Orientation, out invOrientation);
+        public void SetOrientation(Matrix orient)
+        {
+            Transform.Orientation = orient;
+            Matrix.Transpose(ref Transform.Orientation, out invOrientation);
             Matrix.Multiply(ref bodyInvInertia, ref invOrientation, out worldInvInertia);
-            Matrix.Multiply(ref worldInvInertia, ref transform.Orientation, out worldInvInertia);
+            Matrix.Multiply(ref worldInvInertia, ref Transform.Orientation, out worldInvInertia);
             Matrix.Multiply(ref bodyInertia, ref invOrientation, out worldInertia);
-            Matrix.Multiply(ref worldInertia, ref transform.Orientation, out worldInertia);
+            Matrix.Multiply(ref worldInertia, ref Transform.Orientation, out worldInertia);
         }
 
-        /// <summary>
-        /// ApplyWorldImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        public void ApplyWorldImpulse(Vector3 impulse) {
+        public void ApplyWorldImpulse(Vector3 impulse)
+        {
             if (immovable) return;
+            TransformRate.Velocity.X += impulse.X * invMass;
+            TransformRate.Velocity.Y += impulse.Y * invMass;
+            TransformRate.Velocity.Z += impulse.Z * invMass;
 
-            transformRate.Velocity.X += impulse.X * invMass;
-            transformRate.Velocity.Y += impulse.Y * invMass;
-            transformRate.Velocity.Z += impulse.Z * invMass;
-
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyNegativeWorldImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        public void ApplyNegativeWorldImpulse(Vector3 impulse) {
+        public void ApplyNegativeWorldImpulse(Vector3 impulse)
+        {
             if (immovable) return;
+            TransformRate.Velocity.X -= impulse.X * invMass;
+            TransformRate.Velocity.Y -= impulse.Y * invMass;
+            TransformRate.Velocity.Z -= impulse.Z * invMass;
 
-            transformRate.Velocity.X -= impulse.X * invMass;
-            transformRate.Velocity.Y -= impulse.Y * invMass;
-            transformRate.Velocity.Z -= impulse.Z * invMass;
-
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyWorldImpulseAux
-        /// </summary>
-        /// <param name="impulse"></param>
-        public void ApplyWorldImpulseAux(Vector3 impulse) {
+        public void ApplyWorldImpulseAux(Vector3 impulse)
+        {
             if (immovable) return;
             Vector3.Multiply(ref impulse, invMass, out impulse);
             Vector3.Add(ref transformRateAux.Velocity, ref impulse, out transformRateAux.Velocity);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyNegativeWorldImpulseAux
-        /// </summary>
-        /// <param name="impulse"></param>
-        public void ApplyNegativeWorldImpulseAux(Vector3 impulse) {
+        public void ApplyNegativeWorldImpulseAux(Vector3 impulse)
+        {
             if (immovable) return;
             Vector3.Multiply(ref impulse, -invMass, out impulse);
             Vector3.Add(ref transformRateAux.Velocity, ref impulse, out transformRateAux.Velocity);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyWorldImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="pos"></param>
-        public void ApplyWorldImpulse(ref Vector3 impulse, ref Vector3 pos) {
+        public void ApplyWorldImpulse(ref Vector3 impulse, ref Vector3 pos)
+        {
             if (immovable) return;
-            Vector3 v0;
-            Vector3.Subtract(ref pos, ref transform.Position, out v0);
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, invMass, out v1);
-            Vector3.Add(ref transformRate.Velocity, ref v1, out transformRate.Velocity);
+            Vector3.Subtract(ref pos, ref Transform.Position, out var v0);
+            Vector3.Multiply(ref impulse, invMass, out var v1);
+            Vector3.Add(ref TransformRate.Velocity, ref v1, out TransformRate.Velocity);
             Vector3.Cross(ref v0, ref impulse, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
-            Vector3.Add(ref transformRate.AngularVelocity, ref v1, out transformRate.AngularVelocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.AngularVelocity, ref v1, out TransformRate.AngularVelocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyWorldImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="pos"></param>
-        public void ApplyWorldImpulse(Vector3 impulse, Vector3 pos) {
+        public void ApplyWorldImpulse(Vector3 impulse, Vector3 pos)
+        {
             if (immovable) return;
-            Vector3.Subtract(ref pos, ref transform.Position, out pos);
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, invMass, out v1);
-            Vector3.Add(ref transformRate.Velocity, ref v1, out transformRate.Velocity);
+            Vector3.Subtract(ref pos, ref Transform.Position, out pos);
+            Vector3.Multiply(ref impulse, invMass, out var v1);
+            Vector3.Add(ref TransformRate.Velocity, ref v1, out TransformRate.Velocity);
             Vector3.Cross(ref pos, ref impulse, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
-            Vector3.Add(ref transformRate.AngularVelocity, ref v1, out transformRate.AngularVelocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.AngularVelocity, ref v1, out TransformRate.AngularVelocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyNegativeWorldImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="pos"></param>
-        public void ApplyNegativeWorldImpulse(Vector3 impulse, Vector3 pos) {
+        public void ApplyNegativeWorldImpulse(Vector3 impulse, Vector3 pos)
+        {
             if (immovable) return;
-            Vector3.Subtract(ref pos, ref transform.Position, out pos);
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, -invMass, out v1);
-            Vector3.Add(ref transformRate.Velocity, ref v1, out transformRate.Velocity);
+            Vector3.Subtract(ref pos, ref Transform.Position, out pos);
+            Vector3.Multiply(ref impulse, -invMass, out var v1);
+            Vector3.Add(ref TransformRate.Velocity, ref v1, out TransformRate.Velocity);
             Vector3.Cross(ref impulse, ref pos, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
-            Vector3.Add(ref transformRate.AngularVelocity, ref v1, out transformRate.AngularVelocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.AngularVelocity, ref v1, out TransformRate.AngularVelocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyWorldImpulseAux
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="pos"></param>
-        public void ApplyWorldImpulseAux(Vector3 impulse, Vector3 pos) {
+        public void ApplyWorldImpulseAux(Vector3 impulse, Vector3 pos)
+        {
             if (immovable) return;
-            Vector3.Subtract(ref pos, ref transform.Position, out pos);
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, invMass, out v1);
+            Vector3.Subtract(ref pos, ref Transform.Position, out pos);
+            Vector3.Multiply(ref impulse, invMass, out var v1);
             Vector3.Add(ref transformRateAux.Velocity, ref v1, out transformRateAux.Velocity);
             Vector3.Cross(ref pos, ref impulse, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
             Vector3.Add(ref transformRateAux.AngularVelocity, ref v1, out transformRateAux.AngularVelocity);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyNegativeWorldImpulseAux
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="pos"></param>
-        public void ApplyNegativeWorldImpulseAux(Vector3 impulse, Vector3 pos) {
+        public void ApplyNegativeWorldImpulseAux(Vector3 impulse, Vector3 pos)
+        {
             if (immovable) return;
-            Vector3.Subtract(ref pos, ref transform.Position, out pos);
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, -invMass, out v1);
+            Vector3.Subtract(ref pos, ref Transform.Position, out pos);
+            Vector3.Multiply(ref impulse, -invMass, out var v1);
             Vector3.Add(ref transformRateAux.Velocity, ref v1, out transformRateAux.Velocity);
             Vector3.Cross(ref impulse, ref pos, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
             Vector3.Add(ref transformRateAux.AngularVelocity, ref v1, out transformRateAux.AngularVelocity);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyWorldAngImpulse
-        /// </summary>
-        /// <param name="angImpulse"></param>
-        public void ApplyWorldAngImpulse(Vector3 angImpulse) {
+        public void ApplyWorldAngImpulse(Vector3 angImpulse)
+        {
             if (immovable) return;
             Vector3.TransformNormal(ref angImpulse, ref worldInvInertia, out angImpulse);
-            Vector3.Add(ref transformRate.AngularVelocity, ref angImpulse, out transformRate.AngularVelocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.AngularVelocity, ref angImpulse, out TransformRate.AngularVelocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyBodyWorldImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="delta"></param>
-        public void ApplyBodyWorldImpulse(Vector3 impulse, Vector3 delta) {
+        public void ApplyBodyWorldImpulse(Vector3 impulse, Vector3 delta)
+        {
             if (immovable) return;
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, invMass, out v1);
-            Vector3.Add(ref transformRate.Velocity, ref v1, out transformRate.Velocity);
+            Vector3.Multiply(ref impulse, invMass, out var v1);
+            Vector3.Add(ref TransformRate.Velocity, ref v1, out TransformRate.Velocity);
             Vector3.Cross(ref delta, ref impulse, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
-            Vector3.Add(ref transformRate.AngularVelocity, ref v1, out transformRate.AngularVelocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.AngularVelocity, ref v1, out TransformRate.AngularVelocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyBodyWorldImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="delta"></param>
-        public void ApplyBodyWorldImpulse(ref Vector3 impulse, ref Vector3 delta) {
+        public void ApplyBodyWorldImpulse(ref Vector3 impulse, ref Vector3 delta)
+        {
             if (immovable) return;
 
-            transformRate.Velocity.X = transformRate.Velocity.X + impulse.X * invMass;
-            transformRate.Velocity.Y = transformRate.Velocity.Y + impulse.Y * invMass;
-            transformRate.Velocity.Z = transformRate.Velocity.Z + impulse.Z * invMass;
+            TransformRate.Velocity.X += impulse.X * invMass;
+            TransformRate.Velocity.Y += impulse.Y * invMass;
+            TransformRate.Velocity.Z += impulse.Z * invMass;
 
-            float num0, num1, num2;
+            float num2;
 
-            num0 = delta.Y * impulse.Z - delta.Z * impulse.Y;
-            num1 = delta.Z * impulse.X - delta.X * impulse.Z;
+            var num0 = delta.Y * impulse.Z - delta.Z * impulse.Y;
+            var num1 = delta.Z * impulse.X - delta.X * impulse.Z;
             num2 = delta.X * impulse.Y - delta.Y * impulse.X;
 
-            float num3 = num0 * worldInvInertia.M11 + num1 * worldInvInertia.M21 + num2 * worldInvInertia.M31;
-            float num4 = num0 * worldInvInertia.M12 + num1 * worldInvInertia.M22 + num2 * worldInvInertia.M32;
-            float num5 = num0 * worldInvInertia.M13 + num1 * worldInvInertia.M23 + num2 * worldInvInertia.M33;
+            var num3 = num0 * worldInvInertia.M11 + num1 * worldInvInertia.M21 + num2 * worldInvInertia.M31;
+            var num4 = num0 * worldInvInertia.M12 + num1 * worldInvInertia.M22 + num2 * worldInvInertia.M32;
+            var num5 = num0 * worldInvInertia.M13 + num1 * worldInvInertia.M23 + num2 * worldInvInertia.M33;
 
-            transformRate.AngularVelocity.X += num3;
-            transformRate.AngularVelocity.Y += num4;
-            transformRate.AngularVelocity.Z += num5;
+            TransformRate.AngularVelocity.X += num3;
+            TransformRate.AngularVelocity.Y += num4;
+            TransformRate.AngularVelocity.Z += num5;
 
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyNegativeBodyWorldImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="delta"></param>
-        public void ApplyNegativeBodyWorldImpulse(Vector3 impulse, Vector3 delta) {
+        public void ApplyNegativeBodyWorldImpulse(Vector3 impulse, Vector3 delta)
+        {
             if (immovable) return;
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, -invMass, out v1);
-            Vector3.Add(ref transformRate.Velocity, ref v1, out transformRate.Velocity);
+            Vector3.Multiply(ref impulse, -invMass, out var v1);
+            Vector3.Add(ref TransformRate.Velocity, ref v1, out TransformRate.Velocity);
             Vector3.Cross(ref impulse, ref delta, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
-            Vector3.Add(ref transformRate.AngularVelocity, ref v1, out transformRate.AngularVelocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.AngularVelocity, ref v1, out TransformRate.AngularVelocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyNegativeBodyWorldImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="delta"></param>
-        public void ApplyNegativeBodyWorldImpulse(ref Vector3 impulse, ref Vector3 delta) {
+        public void ApplyNegativeBodyWorldImpulse(ref Vector3 impulse, ref Vector3 delta)
+        {
             if (immovable) return;
 
-            transformRate.Velocity.X = transformRate.Velocity.X - impulse.X * invMass;
-            transformRate.Velocity.Y = transformRate.Velocity.Y - impulse.Y * invMass;
-            transformRate.Velocity.Z = transformRate.Velocity.Z - impulse.Z * invMass;
+            TransformRate.Velocity.X -= impulse.X * invMass;
+            TransformRate.Velocity.Y -= impulse.Y * invMass;
+            TransformRate.Velocity.Z -= impulse.Z * invMass;
 
             float num0, num1, num2;
 
@@ -1136,272 +767,206 @@ namespace JigLibX.Physics {
             num1 = delta.X * impulse.Z - delta.Z * impulse.X;
             num2 = delta.Y * impulse.X - delta.X * impulse.Y;
 
-            float num3 = num0 * worldInvInertia.M11 + num1 * worldInvInertia.M21 + num2 * worldInvInertia.M31;
-            float num4 = num0 * worldInvInertia.M12 + num1 * worldInvInertia.M22 + num2 * worldInvInertia.M32;
-            float num5 = num0 * worldInvInertia.M13 + num1 * worldInvInertia.M23 + num2 * worldInvInertia.M33;
+            var num3 = num0 * worldInvInertia.M11 + num1 * worldInvInertia.M21 + num2 * worldInvInertia.M31;
+            var num4 = num0 * worldInvInertia.M12 + num1 * worldInvInertia.M22 + num2 * worldInvInertia.M32;
+            var num5 = num0 * worldInvInertia.M13 + num1 * worldInvInertia.M23 + num2 * worldInvInertia.M33;
 
-            transformRate.AngularVelocity.X += num3;
-            transformRate.AngularVelocity.Y += num4;
-            transformRate.AngularVelocity.Z += num5;
+            TransformRate.AngularVelocity.X += num3;
+            TransformRate.AngularVelocity.Y += num4;
+            TransformRate.AngularVelocity.Z += num5;
 
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyBodyWorldImpulseAux
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="delta"></param>
-        public void ApplyBodyWorldImpulseAux(ref Vector3 impulse, ref Vector3 delta) {
+        public void ApplyBodyWorldImpulseAux(ref Vector3 impulse, ref Vector3 delta)
+        {
             if (immovable) return;
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, invMass, out v1);
+            Vector3.Multiply(ref impulse, invMass, out var v1);
             Vector3.Add(ref transformRateAux.Velocity, ref v1, out transformRateAux.Velocity);
             Vector3.Cross(ref delta, ref impulse, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
             Vector3.Add(ref transformRateAux.AngularVelocity, ref v1, out transformRateAux.AngularVelocity);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyNegativeBodyWorldImpulseAux
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="delta"></param>
-        public void ApplyNegativeBodyWorldImpulseAux(ref Vector3 impulse, ref Vector3 delta) {
+        public void ApplyNegativeBodyWorldImpulseAux(ref Vector3 impulse, ref Vector3 delta)
+        {
             if (immovable) return;
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, -invMass, out v1);
+            Vector3.Multiply(ref impulse, -invMass, out var v1);
             Vector3.Add(ref transformRateAux.Velocity, ref v1, out transformRateAux.Velocity);
             Vector3.Cross(ref impulse, ref delta, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
             Vector3.Add(ref transformRateAux.AngularVelocity, ref v1, out transformRateAux.AngularVelocity);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyBodyImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        public void ApplyBodyImpulse(Vector3 impulse) {
+        public void ApplyBodyImpulse(Vector3 impulse)
+        {
             if (immovable) return;
-            Vector3.TransformNormal(ref impulse, ref transform.Orientation, out impulse);
+            Vector3.TransformNormal(ref impulse, ref Transform.Orientation, out impulse);
             Vector3.Multiply(ref impulse, invMass, out impulse);
-            Vector3.Add(ref transformRate.Velocity, ref impulse, out transformRate.Velocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.Velocity, ref impulse, out TransformRate.Velocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyNegativeBodyImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        public void ApplyNegativeBodyImpulse(Vector3 impulse) {
+        public void ApplyNegativeBodyImpulse(Vector3 impulse)
+        {
             if (immovable) return;
-            Vector3.TransformNormal(ref impulse, ref transform.Orientation, out impulse);
+            Vector3.TransformNormal(ref impulse, ref Transform.Orientation, out impulse);
             Vector3.Multiply(ref impulse, -invMass, out impulse);
-            Vector3.Add(ref transformRate.Velocity, ref impulse, out transformRate.Velocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.Velocity, ref impulse, out TransformRate.Velocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyBodyImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="pos"></param>
-        public void ApplyBodyImpulse(Vector3 impulse, Vector3 pos) {
+        public void ApplyBodyImpulse(Vector3 impulse, Vector3 pos)
+        {
             if (immovable) return;
 
-            Vector3.TransformNormal(ref impulse, ref transform.Orientation, out impulse);
-            Vector3.TransformNormal(ref pos, ref transform.Orientation, out pos);
-            Vector3.Add(ref transform.Position, ref pos, out pos);
-            Vector3.Subtract(ref pos, ref transform.Position, out pos);
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, invMass, out v1);
-            Vector3.Add(ref transformRate.Velocity, ref v1, out transformRate.Velocity);
+            Vector3.TransformNormal(ref impulse, ref Transform.Orientation, out impulse);
+            Vector3.TransformNormal(ref pos, ref Transform.Orientation, out pos);
+            Vector3.Add(ref Transform.Position, ref pos, out pos);
+            Vector3.Subtract(ref pos, ref Transform.Position, out pos);
+            Vector3.Multiply(ref impulse, invMass, out var v1);
+            Vector3.Add(ref TransformRate.Velocity, ref v1, out TransformRate.Velocity);
             Vector3.Cross(ref pos, ref impulse, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
-            Vector3.Add(ref transformRate.AngularVelocity, ref v1, out transformRate.AngularVelocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.AngularVelocity, ref v1, out TransformRate.AngularVelocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyNegativeBodyImpulse
-        /// </summary>
-        /// <param name="impulse"></param>
-        /// <param name="pos"></param>
-        public void ApplyNegativeBodyImpulse(Vector3 impulse, Vector3 pos) {
+        public void ApplyNegativeBodyImpulse(Vector3 impulse, Vector3 pos)
+        {
             if (immovable) return;
-            Vector3.TransformNormal(ref impulse, ref transform.Orientation, out impulse);
-            Vector3.TransformNormal(ref pos, ref transform.Orientation, out pos);
-            Vector3.Add(ref transform.Position, ref pos, out pos);
-            Vector3.Subtract(ref pos, ref transform.Position, out pos);
-            Vector3 v1;
-            Vector3.Multiply(ref impulse, -invMass, out v1);
-            Vector3.Add(ref transformRate.Velocity, ref v1, out transformRate.Velocity);
+            Vector3.TransformNormal(ref impulse, ref Transform.Orientation, out impulse);
+            Vector3.TransformNormal(ref pos, ref Transform.Orientation, out pos);
+            Vector3.Add(ref Transform.Position, ref pos, out pos);
+            Vector3.Subtract(ref pos, ref Transform.Position, out pos);
+            Vector3.Multiply(ref impulse, -invMass, out var v1);
+            Vector3.Add(ref TransformRate.Velocity, ref v1, out TransformRate.Velocity);
             Vector3.Cross(ref impulse, ref pos, out v1);
             Vector3.TransformNormal(ref v1, ref worldInvInertia, out v1);
-            Vector3.Add(ref transformRate.AngularVelocity, ref v1, out transformRate.AngularVelocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.AngularVelocity, ref v1, out TransformRate.AngularVelocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// ApplyBodyAngImpulse
-        /// </summary>
-        /// <param name="angImpulse"></param>
-        public void ApplyBodyAngImpulse(Vector3 angImpulse) {
+        public void ApplyBodyAngImpulse(Vector3 angImpulse)
+        {
             if (immovable) return;
-            Vector3.TransformNormal(ref angImpulse, ref transform.Orientation, out angImpulse);
+            Vector3.TransformNormal(ref angImpulse, ref Transform.Orientation, out angImpulse);
             Vector3.TransformNormal(ref angImpulse, ref worldInvInertia, out angImpulse);
-            Vector3.Add(ref transformRate.AngularVelocity, ref angImpulse, out transformRate.AngularVelocity);
-            velChanged = true;
+            Vector3.Add(ref TransformRate.AngularVelocity, ref angImpulse, out TransformRate.AngularVelocity);
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// AddWorldForce
-        /// </summary>
-        /// <param name="force"></param>
-        public void AddWorldForce(Vector3 force) {
+        public void AddWorldForce(Vector3 force)
+        {
             if (immovable) return;
             Vector3.Add(ref this.force, ref force, out this.force);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// AddWordForce
-        /// </summary>
-        /// <param name="force"></param>
-        /// <param name="pos"></param>
-        public void AddWorldForce(Vector3 force, Vector3 pos) {
+        public void AddWorldForce(Vector3 force, Vector3 pos)
+        {
             if (immovable) return;
             Vector3.Add(ref this.force, ref force, out this.force);
-            Vector3.Subtract(ref pos, ref transform.Position, out pos);
+            Vector3.Subtract(ref pos, ref Transform.Position, out pos);
             Vector3.Cross(ref pos, ref force, out pos);
             Vector3.Add(ref pos, ref torque, out torque);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// AddWorldTorque
-        /// </summary>
-        /// <param name="torque"></param>
-        public void AddWorldTorque(Vector3 torque) {
+        public void AddWorldTorque(Vector3 torque)
+        {
             if (immovable) return;
             Vector3.Add(ref this.torque, ref torque, out this.torque);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// AddBodyForce
-        /// </summary>
-        /// <param name="force"></param>
-        public void AddBodyForce(Vector3 force) {
+        public void AddBodyForce(Vector3 force)
+        {
             if (immovable) return;
-            Vector3.TransformNormal(ref force, ref transform.Orientation, out force);
+            Vector3.TransformNormal(ref force, ref Transform.Orientation, out force);
             Vector3.Add(ref this.force, ref force, out this.force);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// AddBodyForce
-        /// </summary>
-        /// <param name="force"></param>
-        /// <param name="pos"></param>
-        public void AddBodyForce(Vector3 force, Vector3 pos) {
+        public void AddBodyForce(Vector3 force, Vector3 pos)
+        {
             if (immovable) return;
-            Vector3.TransformNormal(ref force, ref transform.Orientation, out force);
-            Vector3.TransformNormal(ref pos, ref transform.Orientation, out pos);
-            Vector3.Add(ref transform.Position, ref pos, out pos);
+            Vector3.TransformNormal(ref force, ref Transform.Orientation, out force);
+            Vector3.TransformNormal(ref pos, ref Transform.Orientation, out pos);
+            Vector3.Add(ref Transform.Position, ref pos, out pos);
             Vector3.Add(ref this.force, ref force, out this.force);
-            Vector3.Subtract(ref pos, ref transform.Position, out pos);
+            Vector3.Subtract(ref pos, ref Transform.Position, out pos);
             Vector3.Cross(ref pos, ref force, out pos);
             Vector3.Add(ref pos, ref torque, out torque);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// AddBodyTorque
-        /// </summary>
-        /// <param name="torque"></param>
-        public void AddBodyTorque(Vector3 torque) {
+        public void AddBodyTorque(Vector3 torque)
+        {
             if (immovable) return;
-            Vector3.TransformNormal(ref torque, ref transform.Orientation, out torque);
+            Vector3.TransformNormal(ref torque, ref Transform.Orientation, out torque);
             Vector3.Add(ref this.torque, ref torque, out this.torque);
-            velChanged = true;
+            VelChanged = true;
         }
 
-        /// <summary>
-        /// This just sets all forces/impulses etc to zero
-        /// </summary>
-        public void ClearForces() {
+        public void ClearForces()
+        {
             force = torque = Vector3.Zero;
         }
 
-        /// <summary>
-        /// Adds the force of global gravity to the external force, if the body is marked
-        /// to be effected via global gravity
-        /// </summary>
-        public void AddGravityToExternalForce() {
-            if (PhysicsSystem.CurrentPhysicsSystem != null && applyGravity) force += Vector3.Multiply(PhysicsSystem.CurrentPhysicsSystem.Gravity, mass);
+        public void AddGravityToExternalForce()
+        {
+            if (PhysicsSystem.CurrentPhysicsSystem != null && ApplyGravity)
+                force += Vector3.Multiply(PhysicsSystem.CurrentPhysicsSystem.Gravity, mass);
         }
 
-        /// <summary>
-        /// Allow the body to add on any additional forces (including
-        /// gravity)/impulses etc. Default behaviour sets to gravity.
-        /// </summary>
-        /// <param name="dt"></param>
-        public virtual void AddExternalForces(float dt) {
+        public virtual void AddExternalForces(float dt)
+        {
             ClearForces();
             AddGravityToExternalForce();
         }
 
-        /// <summary>
-        /// Copies the current position etc to old - normally called only
-        /// by tPhysicsSystem.
-        /// </summary>
-        public void CopyCurrentStateToOld() {
-            oldTransform = transform;
-            oldTransformRate = transformRate;
+        public void CopyCurrentStateToOld()
+        {
+            oldTransform = Transform;
+            oldTransformRate = TransformRate;
         }
 
-        /// <summary>
-        /// SetConstraintsAndCollisionsUnsatisfied
-        /// </summary>
-        public void SetConstraintsAndCollisionsUnsatisfied() {
+        public void SetConstraintsAndCollisionsUnsatisfied()
+        {
             int count;
 
             count = constraints.Count;
-            for (int i = 0; i < count; i++) constraints[i].Satisfied = false;
+            for (var i = 0; i < count; i++) constraints[i].Satisfied = false;
 
-            if (collSkin == null) return;
+            if (CollisionSkin == null) return;
 
-            count = collSkin.Collisions.Count;
-            for (int i = 0; i < count; i++) collSkin.Collisions[i].Satisfied = false;
+            count = CollisionSkin.Collisions.Count;
+            for (var i = 0; i < count; i++) CollisionSkin.Collisions[i].Satisfied = false;
         }
 
-        /// <summary>
-        /// Copy our current state (position, velocity etc) into the stored state
-        /// </summary>
-        public void StoreState() {
-            storedTransform = transform;
-            storedTransformRate = transformRate;
+        public void StoreState()
+        {
+            storedTransform = Transform;
+            storedTransformRate = TransformRate;
         }
 
-        /// <summary>
-        /// Restore from the stored state into our current state.
-        /// </summary>
-        public void RestoreState() {
-            transform = storedTransform;
-            transformRate = storedTransformRate;
+        public void RestoreState()
+        {
+            Transform = storedTransform;
+            TransformRate = storedTransformRate;
 
-            Matrix.Transpose(ref transform.Orientation, out invOrientation);
+            Matrix.Transpose(ref Transform.Orientation, out invOrientation);
 
-            //worldInvInertia = transform.Orientation * bodyInvInertia * invOrientation;
+
             Matrix.Multiply(ref invOrientation, ref bodyInvInertia, out worldInvInertia);
-            Matrix.Multiply(ref worldInvInertia, ref transform.Orientation, out worldInvInertia);
+            Matrix.Multiply(ref worldInvInertia, ref Transform.Orientation, out worldInvInertia);
 
-            //worldInertia = transform.Orientation * bodyInertia * invOrientation;
+
             Matrix.Multiply(ref invOrientation, ref bodyInertia, out worldInertia);
-            Matrix.Multiply(ref worldInertia, ref transform.Orientation, out worldInertia);
+            Matrix.Multiply(ref worldInertia, ref Transform.Orientation, out worldInertia);
         }
     }
 }

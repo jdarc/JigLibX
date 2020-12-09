@@ -5,7 +5,7 @@
     <OutputType>Library</OutputType>
     <RootNamespace>HeightmapProcessor</RootNamespace>
     <AssemblyName>HeightmapProcessor</AssemblyName>
-    <LangVersion>3</LangVersion>
+    <LangVersion>8</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>

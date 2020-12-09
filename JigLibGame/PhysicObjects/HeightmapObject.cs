@@ -1,35 +1,36 @@
-﻿using Microsoft.Xna.Framework;
-using JigLibX.Collision;
-using JigLibX.Physics;
-using JigLibX.Geometry;
+﻿using JigLibX.Collision;
 using JigLibX.Geometry.Primitives;
-using Microsoft.Xna.Framework.Graphics;
+using JigLibX.Physics;
 using JigLibX.Utils;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
-namespace JiggleGame.PhysicObjects {
-    public class HeightmapObject : PhysicObject {
-        public HeightmapObject(Game game, Model model, Vector2 shift) : base(game, model) {
-            body = new Body(); // just a dummy. The PhysicObject uses its position to get the draw pos
-            collision = new CollisionSkin(null);
+namespace JigLibGame.PhysicObjects
+{
+    public class HeightmapObject : PhysicObject
+    {
+        public HeightmapObject(Game game, Model model, Vector2 shift) : base(game, model)
+        {
+            Body = new Body();
+            Collision = new CollisionSkin(null);
 
-            HeightMapInfo heightMapInfo = model.Tag as HeightMapInfo;
-            Array2D field = new Array2D(heightMapInfo.heights.GetLength(0), heightMapInfo.heights.GetLength(1));
+            var heightMapInfo = model.Tag as HeightMapInfo;
+            var field = new Array2D(heightMapInfo.Heights.GetLength(0), heightMapInfo.Heights.GetLength(1));
 
-            for (int x = 0; x < heightMapInfo.heights.GetLength(0); x++)
-            for (int z = 0; z < heightMapInfo.heights.GetLength(1); z++)
-                field.SetAt(x, z, heightMapInfo.heights[x, z]);
+            for (var x = 0; x < heightMapInfo.Heights.GetLength(0); x++)
+            for (var z = 0; z < heightMapInfo.Heights.GetLength(1); z++)
+                field.SetAt(x, z, heightMapInfo.Heights[x, z]);
 
-            // move the body. The body (because its not connected to the collision
-            // skin) is just a dummy. But the base class shoudl know where to
-            // draw the model.
-            body.MoveTo(new Vector3(shift.X, 0, shift.Y), Matrix.Identity);
 
-            collision.AddPrimitive(new Heightmap(field, shift.X, shift.Y, heightMapInfo.terrainScale, heightMapInfo.terrainScale), new MaterialProperties(0.7f, 0.7f, 0.6f));
+            Body.MoveTo(new Vector3(shift.X, 0, shift.Y), Matrix.Identity);
 
-            PhysicsSystem.CurrentPhysicsSystem.CollisionSystem.AddCollisionSkin(collision);
+            Collision.AddPrimitive(new Heightmap(field, shift.X, shift.Y, heightMapInfo.TerrainScale, heightMapInfo.TerrainScale), new MaterialProperties(0.7f, 0.7f, 0.6f));
+
+            PhysicsSystem.CurrentPhysicsSystem.CollisionSystem.AddCollisionSkin(Collision);
         }
 
-        public override void ApplyEffects(BasicEffect effect) {
+        public override void ApplyEffects(BasicEffect effect)
+        {
             effect.PreferPerPixelLighting = true;
         }
     }

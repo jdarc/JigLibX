@@ -1,306 +1,200 @@
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 
-namespace JigLibX.Vehicles {
-    /// <summary>
-    /// Class Car
-    /// </summary>
-    public class Car {
-        private enum WheelId {
-            WheelBR = 0,
-            WheelFR = 1,
-            WheelBL = 2,
-            WheelFL = 3,
+namespace JigLibX.Vehicles
+{
+    public class Car
+    {
+        private enum WheelId
+        {
+            WheelBr = 0,
+            WheelFr = 1,
+            WheelBl = 2,
+            WheelFl = 3,
             MaxWheels = 4
         }
 
-        private Chassis chassis;
-        private List<Wheel> wheels;
+        private readonly float _maxSteerAngle;
+        private readonly float _steerRate;
+        private readonly float _wheelSideFriction;
+        private readonly float _wheelFwdFriction;
+        private readonly float _wheelTravel;
+        private readonly float _wheelRadius;
+        private readonly float _wheelZOffset;
+        private readonly float _wheelRestingFrac;
+        private readonly float _wheelDampingFrac;
+        private readonly int _wheelNumRays;
+        private readonly float _driveTorque;
+        private readonly float _gravity;
 
-        private bool fWDrive;
-        private bool bWDrive;
-        private float maxSteerAngle;
-        private float steerRate;
-        private float wheelSideFriction;
-        private float wheelFwdFriction;
-        private float wheelTravel;
-        private float wheelRadius;
-        private float wheelZOffset;
-        private float wheelRestingFrac;
-        private float wheelDampingFrac;
-        private int wheelNumRays;
-        private float driveTorque;
-        private float gravity;
+        private float _steering;
+        private float _accelerate;
+        
+        public bool BwDrive { get; set; }
+        public bool FwDrive { get; set; }
+        public Chassis Chassis { get; private set; }
+        public List<Wheel> Wheels { get; private set; }
+        public float Accelerate { get; set; }
+        public float Steer { get; set; }
+        public float HBrake { get; set; }
+        public int NumWheelsOnFloor => Wheels.Count(t => t.OnFloor);
 
-        // control stuff
-        private float destSteering = 0.0f; // +1 for left, -1 for right
-        private float destAccelerate = 0.0f; // +1 for acc, -1 for brake
+        public Car(bool fwDrive, bool rwDrive, float maxSteerAngle, float steerRate, float wheelSideFriction, float wheelFwdFriction, float wheelTravel, float wheelRadius, float wheelZOffset, float wheelRestingFrac, float wheelDampingFrac, int wheelNumRays, float driveTorque, float gravity)
+        {
+            FwDrive = fwDrive;
+            BwDrive = rwDrive;
+            _maxSteerAngle = maxSteerAngle;
+            _steerRate = steerRate;
+            _wheelSideFriction = wheelSideFriction;
+            _wheelFwdFriction = wheelFwdFriction;
+            _wheelTravel = wheelTravel;
+            _wheelRadius = wheelRadius;
+            _wheelZOffset = wheelZOffset;
+            _wheelRestingFrac = wheelRestingFrac;
+            _wheelDampingFrac = wheelDampingFrac;
+            _wheelNumRays = wheelNumRays;
+            _driveTorque = driveTorque;
+            _gravity = gravity;
 
-        private float steering = 0.0f;
-        private float accelerate = 0.0f;
-        private float hBrake = 0.0f;
-
-        /// <summary>
-        /// On construction the physical/collision objects are created, but
-        /// not registered
-        /// </summary>
-        /// <param name="FWDrive"></param>
-        /// <param name="RWDrive"></param>
-        /// <param name="maxSteerAngle"></param>
-        /// <param name="steerRate"></param>
-        /// <param name="wheelSideFriction"></param>
-        /// <param name="wheelFwdFriction"></param>
-        /// <param name="wheelTravel"></param>
-        /// <param name="wheelRadius"></param>
-        /// <param name="wheelZOffset"></param>
-        /// <param name="wheelRestingFrac"></param>
-        /// <param name="wheelDampingFrac"></param>
-        /// <param name="wheelNumRays"></param>
-        /// <param name="driveTorque"></param>
-        /// <param name="gravity"></param>
-        public Car(bool FWDrive, bool RWDrive, float maxSteerAngle, float steerRate, float wheelSideFriction, float wheelFwdFriction, float wheelTravel, float wheelRadius, float wheelZOffset, float wheelRestingFrac, float wheelDampingFrac, int wheelNumRays, float driveTorque, float gravity) {
-            fWDrive = FWDrive;
-            bWDrive = RWDrive;
-            this.maxSteerAngle = maxSteerAngle;
-            this.steerRate = steerRate;
-            this.wheelSideFriction = wheelSideFriction;
-            this.wheelFwdFriction = wheelFwdFriction;
-            this.wheelTravel = wheelTravel;
-            this.wheelRadius = wheelRadius;
-            this.wheelZOffset = wheelZOffset;
-            this.wheelRestingFrac = wheelRestingFrac;
-            this.wheelDampingFrac = wheelDampingFrac;
-            this.wheelNumRays = wheelNumRays;
-            this.driveTorque = driveTorque;
-            this.gravity = gravity;
-
-            chassis = new Chassis(this);
+            Chassis = new Chassis(this);
 
             SetupDefaultWheels();
         }
 
-        /// <summary>
-        /// Sets up some sensible wheels based on the chassis
-        /// </summary>
-        public void SetupDefaultWheels() {
-            if (chassis == null) return; // happens in constructor of tChassis
+        public void SetupDefaultWheels()
+        {
+            if (Chassis == null) return;
 
-            Vector3 min, max;
-            chassis.GetDims(out min, out max);
+            Chassis.GetDims(out var min, out var max);
 
-            float mass = chassis.Body.Mass;
-            float mass4 = 0.25f * mass;
+            var mass = Chassis.Body.Mass;
+            var mass4 = 0.25f * mass;
 
-            Vector3 axis = Vector3.Up; // TODO: check this
-            // set the resting position to be restingFrac * mWheelTravel
-            // todo how do we get gravity before the car is registered with physics?!
-            float spring = mass4 * gravity / (wheelRestingFrac * wheelTravel);
+            var axis = Vector3.Up;
+            
+            var spring = mass4 * _gravity / (_wheelRestingFrac * _wheelTravel);
 
-            // inertia = 0.5 * m * r^2
-            float wheelMass = 0.03f * mass;
-            float inertia = 0.5f * (wheelRadius * wheelRadius) * wheelMass;
+            var wheelMass = 0.03f * mass;
+            var inertia = 0.5f * (_wheelRadius * _wheelRadius) * wheelMass;
+            
+            var damping = 2.0f * (float) System.Math.Sqrt(spring * mass);
+            damping *= 0.25f;
+            damping *= _wheelDampingFrac;
 
-            // critical damping from (d = damping, k = spring, x = displacement, v = displacement vel, a = displacement acc):
-            // a + (d/m) * v + (k/m) * x = 0
-            // beta = d/m   w0^2 = k/m
-            // critical if sq(beta) = 4*sq(w0)
-            // so d = 2 * sqrt(k*m)
-            float damping = 2.0f * (float) System.Math.Sqrt(spring * mass);
-            damping *= 0.25f; // assume wheels act together
-            damping *= wheelDampingFrac; // a bit bouncy
 
-            // the wheels aren't quite at the corners
-            min.X += 3.0f * wheelRadius;
-            max.X -= 3.1f * wheelRadius;
-            min.Z += wheelRadius * 0.35f;
-            max.Z -= wheelRadius * 0.35f;
+            min.X += 3.0f * _wheelRadius;
+            max.X -= 3.1f * _wheelRadius;
+            min.Z += _wheelRadius * 0.35f;
+            max.Z -= _wheelRadius * 0.35f;
 
-            Vector3 delta = max - min;
+            var delta = max - min;
 
-            min.Y += wheelZOffset;
+            min.Y += _wheelZOffset;
 
-            Vector3 BRPos = min;
-            Vector3 FRPos = min + new Vector3(delta.X, 0.0f, 0.0f);
-            Vector3 BLPos = min + new Vector3(0.0f, 0.0f, delta.Z);
-            Vector3 FLPos = min + new Vector3(delta.X, 0.0f, delta.Z);
+            var brPos = min;
+            var frPos = min + new Vector3(delta.X, 0.0f, 0.0f);
+            var blPos = min + new Vector3(0.0f, 0.0f, delta.Z);
+            var flPos = min + new Vector3(delta.X, 0.0f, delta.Z);
 
-            if (wheels == null) wheels = new List<Wheel>();
+            Wheels ??= new List<Wheel>();
 
-            if (wheels.Count == 0) {
-                wheels.Add(new Wheel());
-                wheels.Add(new Wheel());
-                wheels.Add(new Wheel());
-                wheels.Add(new Wheel());
+            if (Wheels.Count == 0)
+            {
+                Wheels.Add(new Wheel());
+                Wheels.Add(new Wheel());
+                Wheels.Add(new Wheel());
+                Wheels.Add(new Wheel());
             }
 
 
-            wheels[(int) WheelId.WheelBR].Setup(this, BRPos, axis, spring, wheelTravel, inertia, wheelRadius, wheelSideFriction, wheelFwdFriction, damping, wheelNumRays);
-
-            wheels[(int) WheelId.WheelFR].Setup(this, FRPos, axis, spring, wheelTravel, inertia, wheelRadius, wheelSideFriction, wheelFwdFriction, damping, wheelNumRays);
-
-            wheels[(int) WheelId.WheelBL].Setup(this, BLPos, axis, spring, wheelTravel, inertia, wheelRadius, wheelSideFriction, wheelFwdFriction, damping, wheelNumRays);
-
-            wheels[(int) WheelId.WheelFL].Setup(this, FLPos, axis, spring, wheelTravel, inertia, wheelRadius, wheelSideFriction, wheelFwdFriction, damping, wheelNumRays);
+            Wheels[(int) WheelId.WheelBr].Setup(this, brPos, axis, spring, _wheelTravel, inertia, _wheelRadius, _wheelSideFriction, _wheelFwdFriction, damping, _wheelNumRays);
+            Wheels[(int) WheelId.WheelFr].Setup(this, frPos, axis, spring, _wheelTravel, inertia, _wheelRadius, _wheelSideFriction, _wheelFwdFriction, damping, _wheelNumRays);
+            Wheels[(int) WheelId.WheelBl].Setup(this, blPos, axis, spring, _wheelTravel, inertia, _wheelRadius, _wheelSideFriction, _wheelFwdFriction, damping, _wheelNumRays);
+            Wheels[(int) WheelId.WheelFl].Setup(this, flPos, axis, spring, _wheelTravel, inertia, _wheelRadius, _wheelSideFriction, _wheelFwdFriction, damping, _wheelNumRays);
         }
 
-        /// <summary>
-        /// Register with physics
-        /// </summary>
-        public void EnableCar() {
-            if (chassis != null) chassis.EnableChassis();
+        public void EnableCar() => Chassis?.EnableChassis();
+
+        public void DisableCar() => Chassis?.DisableChassis();
+
+        public void AddExternalForces(float dt)
+        {
+            foreach (var t in Wheels) t.AddForcesToCar(dt);
         }
 
-        /// <summary>
-        /// Remove from the physics system
-        /// </summary>
-        public void DisableCar() {
-            if (chassis != null) chassis.DisableChassis();
-        }
+        public void PostPhysics(float dt)
+        {
+            foreach (var t in Wheels) t.Update(dt);
 
-        /// <summary>
-        /// AddExternalForces
-        /// </summary>
-        /// <param name="dt"></param>
-        public void AddExternalForces(float dt) {
-            for (int i = 0; i < wheels.Count; i++) wheels[i].AddForcesToCar(dt);
-        }
-
-        /// <summary>
-        /// Update stuff at the end of physics
-        /// </summary>
-        /// <param name="dt"></param>
-        public void PostPhysics(float dt) {
-            for (int i = 0; i < wheels.Count; i++) wheels[i].Update(dt);
-
-            // control inputs
-            float deltaAccelerate = dt * 4.0f;
-            float deltaSteering = dt * steerRate;
-
-            // update the actual values
-            float dAccelerate = destAccelerate - accelerate;
+            var deltaAccelerate = dt * 4.0f;
+            var deltaSteering = dt * _steerRate;
+            
+            var dAccelerate = Accelerate - _accelerate;
             dAccelerate = MathHelper.Clamp(dAccelerate, -deltaAccelerate, deltaAccelerate);
 
-            accelerate += dAccelerate;
+            _accelerate += dAccelerate;
 
-            float dSteering = destSteering - steering;
+            var dSteering = Steer - _steering;
             dSteering = MathHelper.Clamp(dSteering, -deltaSteering, deltaSteering);
 
-            steering += dSteering;
+            _steering += dSteering;
 
-            // apply these inputs
-            float maxTorque = driveTorque;
 
-            if (fWDrive && bWDrive) maxTorque *= 0.5f;
+            var maxTorque = _driveTorque;
 
-            if (fWDrive) {
-                wheels[(int) WheelId.WheelFL].AddTorque(maxTorque * accelerate);
-                wheels[(int) WheelId.WheelFR].AddTorque(maxTorque * accelerate);
+            if (FwDrive && BwDrive) maxTorque *= 0.5f;
+
+            if (FwDrive)
+            {
+                Wheels[(int) WheelId.WheelFl].AddTorque(maxTorque * _accelerate);
+                Wheels[(int) WheelId.WheelFr].AddTorque(maxTorque * _accelerate);
             }
 
-            if (bWDrive) {
-                wheels[(int) WheelId.WheelBL].AddTorque(maxTorque * accelerate);
-                wheels[(int) WheelId.WheelBR].AddTorque(maxTorque * accelerate);
+            if (BwDrive)
+            {
+                Wheels[(int) WheelId.WheelBl].AddTorque(maxTorque * _accelerate);
+                Wheels[(int) WheelId.WheelBr].AddTorque(maxTorque * _accelerate);
             }
 
-            wheels[(int) WheelId.WheelBL].Lock = hBrake > 0.5f;
-            wheels[(int) WheelId.WheelBR].Lock = hBrake > 0.5f;
+            Wheels[(int) WheelId.WheelBl].Lock = HBrake > 0.5f;
+            Wheels[(int) WheelId.WheelBr].Lock = HBrake > 0.5f;
 
-            // steering angle applies to the inner wheel. The outer one needs to match it
+
             int inner, outer;
 
-            if (steering > 0.0f) {
-                inner = (int) WheelId.WheelFL;
-                outer = (int) WheelId.WheelFR;
-            } else {
-                inner = (int) WheelId.WheelFR;
-                outer = (int) WheelId.WheelFL;
+            if (_steering > 0.0f)
+            {
+                inner = (int) WheelId.WheelFl;
+                outer = (int) WheelId.WheelFr;
+            }
+            else
+            {
+                inner = (int) WheelId.WheelFr;
+                outer = (int) WheelId.WheelFl;
             }
 
-            float alpha = System.Math.Abs(maxSteerAngle * steering);
-            float angleSgn = steering > 0.0f ? 1.0f : -1.0f;
+            var alpha = System.Math.Abs(_maxSteerAngle * _steering);
+            var angleSgn = _steering > 0.0f ? 1.0f : -1.0f;
 
-            wheels[inner].SteerAngle = angleSgn * alpha;
+            Wheels[inner].SteerAngle = angleSgn * alpha;
 
             float beta;
 
-            if (alpha == 0.0f) { beta = alpha; } else {
-                float dx = wheels[(int) WheelId.WheelFR].Pos.X - wheels[(int) WheelId.WheelBR].Pos.X;
-                float dy = wheels[(int) WheelId.WheelFL].Pos.Z - wheels[(int) WheelId.WheelFR].Pos.Z;
-                //beta = ATan2Deg(dy, dx + (dy / TanDeg(alpha)));
+            if (alpha == 0.0f)
+            {
+                beta = alpha;
+            }
+            else
+            {
+                var dx = Wheels[(int) WheelId.WheelFr].Pos.X - Wheels[(int) WheelId.WheelBr].Pos.X;
+                var dy = Wheels[(int) WheelId.WheelFl].Pos.Z - Wheels[(int) WheelId.WheelFr].Pos.Z;
+
                 beta = (float) System.Math.Atan2(MathHelper.ToRadians(dy), MathHelper.ToRadians(dx + dy / (float) System.Math.Tan(MathHelper.ToRadians(alpha))));
                 beta = MathHelper.ToDegrees(beta);
             }
 
-            wheels[outer].SteerAngle = angleSgn * beta;
-        }
-
-        /// <summary>
-        /// Gets or Sets back-wheel drive
-        /// </summary>
-        public bool BWDrive {
-            get { return bWDrive; }
-            set { bWDrive = value; }
-        }
-
-        /// <summary>
-        /// Gets or Sets front-wheel drive
-        /// </summary>
-        public bool FWDrive {
-            get { return fWDrive; }
-            set { fWDrive = value; }
-        }
-
-        /// <summary>
-        /// Gets or Sets chassis (There will always be a chassis)
-        /// </summary>
-        public Chassis Chassis {
-            get { return chassis; }
-            set { chassis = value; }
-        }
-
-        /// <summary>
-        /// Allow access to all the wheels
-        /// </summary>
-        public List<Wheel> Wheels {
-            get { return wheels; }
-        }
-
-        /// <summary>
-        /// Accelerate control - values -1/0 to 1
-        /// </summary>
-        public float Accelerate {
-            get { return destAccelerate; }
-            set { destAccelerate = value; }
-        }
-
-        /// <summary>
-        /// Steer control - values -1/0 to 1
-        /// </summary>
-        public float Steer {
-            get { return destSteering; }
-            set { destSteering = value; }
-        }
-
-        /// <summary>
-        /// HBrake control - values -1/0 to 1
-        /// </summary>
-        public float HBrake {
-            get { return hBrake; }
-            set { hBrake = value; }
-        }
-
-        /// <summary>
-        /// Gets count NumWheelsOnFloor
-        /// </summary>
-        public int NumWheelsOnFloor {
-            get {
-                int count = 0;
-
-                for (int i = 0; i < wheels.Count; i++)
-                    if (wheels[i].OnFloor)
-                        count++;
-                return count;
-            }
+            Wheels[outer].SteerAngle = angleSgn * beta;
         }
     }
 }

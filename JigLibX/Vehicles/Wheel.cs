@@ -4,303 +4,253 @@ using JigLibX.Physics;
 using JigLibX.Geometry;
 using JigLibX.Collision;
 
-namespace JigLibX.Vehicles {
-    /// <summary>
-    /// Class Wheel
-    /// </summary>
-    public class Wheel {
-        private Car car;
+namespace JigLibX.Vehicles
+{
+    public class Wheel
+    {
+        private const int MaxNumRays = 32;
+        
+        private readonly float[] _fracs = new float[MaxNumRays];
+        private readonly CollisionSkin[] _otherSkins = new CollisionSkin[MaxNumRays];
+        private readonly Vector3[] _groundPositions = new Vector3[MaxNumRays];
+        private readonly Vector3[] _groundNormals = new Vector3[MaxNumRays];
+        private readonly Segment[] _segments = new Segment[MaxNumRays];
 
-        /// local mount position
-        private Vector3 pos;
+        private Car _car;
+        private float _spring;
+        private float _travel;
+        private float _inertia;
+        private float _sideFriction;
+        private float _fwdFriction;
+        private float _damping;
+        private int _numRays;
+        private float _angVel;
+        private float _torque;
+        private float _driveTorque;
+        private float _upSpeed;
+        private float _lastDisplacement;
+        private float _angVelForGrip;
+        private WheelPred _pred;
 
-        private Vector3 axisUp;
-        private float spring;
-        private float travel;
-        private float inertia;
-        private float radius;
-        private float sideFriction;
-        private float fwdFriction;
-        private float damping;
-        private int numRays;
 
-        // things that change 
-        private float angVel;
-        private float steerAngle;
-        private float torque;
-        private float driveTorque;
-        private float axisAngle;
-        private float displacement; // = mTravel when fully compressed
-        private float upSpeed; // speed relative to the car
+        public void Setup(Car car, Vector3 pos, Vector3 axisUp, float spring, float travel, float inertia, float radius, float sideFriction, float fwdFriction, float damping, int numRays)
+        {
+            _car = car;
+            Pos = pos;
+            LocalAxisUp = axisUp;
+            _spring = spring;
+            _travel = travel;
+            _inertia = inertia;
+            Radius = radius;
+            _sideFriction = sideFriction;
+            _fwdFriction = fwdFriction;
+            _damping = damping;
+            _numRays = numRays;
 
-        private bool locked;
-
-        // last frame stuff
-        private float lastDisplacement;
-        private bool lastOnFloor;
-
-        /// used to estimate the friction
-        private float angVelForGrip;
-
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="car"></param>
-        /// <param name="pos"></param>
-        /// <param name="axisUp"></param>
-        /// <param name="spring"></param>
-        /// <param name="travel"></param>
-        /// <param name="inertia"></param>
-        /// <param name="radius"></param>
-        /// <param name="sideFriction"></param>
-        /// <param name="fwdFriction"></param>
-        /// <param name="damping"></param>
-        /// <param name="numRays"></param>
-        public void Setup(Car car, Vector3 pos, //< position relative to car, in car's space
-                          Vector3 axisUp, //< in car's space
-                          float spring, //< force per suspension offset
-                          float travel, //< suspension travel upwards
-                          float inertia, //< inertia about the axel
-                          float radius, float sideFriction, float fwdFriction, float damping, int numRays) {
-            this.car = car;
-            this.pos = pos;
-            this.axisUp = axisUp;
-            this.spring = spring;
-            this.travel = travel;
-            this.inertia = inertia;
-            this.radius = radius;
-            this.sideFriction = sideFriction;
-            this.fwdFriction = fwdFriction;
-            this.damping = damping;
-            this.numRays = numRays;
-
-            pred = new WheelPred(car.Chassis.Body.CollisionSkin);
+            _pred = new WheelPred(car.Chassis.Body.CollisionSkin);
 
             Reset();
         }
 
-        /// <summary>
-        /// Sets everything that varies to a default
-        /// </summary>
-        public void Reset() {
-            angVel = 0.0f;
-            steerAngle = 0.0f;
-            torque = 0.0f;
-            driveTorque = 0.0f;
-            axisAngle = 0.0f;
-            displacement = 0.0f;
-            upSpeed = 0.0f;
-            locked = false;
-            lastDisplacement = 0.0f;
-            lastOnFloor = false;
-            angVelForGrip = 0.0f;
+        public void Reset()
+        {
+            _angVel = 0.0f;
+            SteerAngle = 0.0f;
+            _torque = 0.0f;
+            _driveTorque = 0.0f;
+            AxisAngle = 0.0f;
+            Displacement = 0.0f;
+            _upSpeed = 0.0f;
+            Lock = false;
+            _lastDisplacement = 0.0f;
+            OnFloor = false;
+            _angVelForGrip = 0.0f;
         }
+        
+        public bool AddForcesToCar(float dt)
+        {
+            var force = Vector3.Zero;
+            _lastDisplacement = Displacement;
+            Displacement = 0.0f;
 
-        // do a number of rays, and choose the deepest penetration
-        private const int maxNumRays = 32;
-        private float[] fracs = new float[maxNumRays];
-        private CollisionSkin[] otherSkins = new CollisionSkin[maxNumRays];
-        private Vector3[] groundPositions = new Vector3[maxNumRays];
-        private Vector3[] groundNormals = new Vector3[maxNumRays];
-        private Segment[] segments = new Segment[maxNumRays];
-        private WheelPred pred;
+            var carBody = _car.Chassis.Body;
 
-        /// <summary> // TODO teting testing testing ...
-        /// Adds the forces die to this wheel to the parent. Return value indicates if it's
-        /// on the ground.
-        /// </summary>
-        /// <param name="dt"></param>
-        public bool AddForcesToCar(float dt) {
-            Vector3 force = Vector3.Zero;
-            lastDisplacement = displacement;
-            displacement = 0.0f;
+            var worldPos = carBody.Position + Vector3.TransformNormal(Pos, carBody.Orientation);
+            var worldAxis = Vector3.TransformNormal(LocalAxisUp, carBody.Orientation);
 
-            Body carBody = car.Chassis.Body;
 
-            Vector3 worldPos = carBody.Position + Vector3.TransformNormal(pos, carBody.Orientation); // *mPos;
-            Vector3 worldAxis = Vector3.TransformNormal(axisUp, carBody.Orientation); // *mAxisUp;
+            var wheelFwd = Vector3.TransformNormal(carBody.Orientation.Right, JiggleMath.RotationMatrix(SteerAngle, worldAxis));
 
-            //Vector3 wheelFwd = RotationMatrix(mSteerAngle, worldAxis) * carBody.Orientation.GetCol(0);
-            // OpenGl has differnet row/column order for matrixes than XNA has ..
-            Vector3 wheelFwd = Vector3.TransformNormal(carBody.Orientation.Right, JiggleMath.RotationMatrix(steerAngle, worldAxis));
-            //Vector3 wheelFwd = RotationMatrix(mSteerAngle, worldAxis) * carBody.GetOrientation().GetCol(0);
-            Vector3 wheelUp = worldAxis;
-            Vector3 wheelLeft = Vector3.Cross(wheelUp, wheelFwd);
+            var wheelUp = worldAxis;
+            var wheelLeft = Vector3.Cross(wheelUp, wheelFwd);
             wheelLeft.Normalize();
 
             wheelUp = Vector3.Cross(wheelFwd, wheelLeft);
 
-            // start of ray
-            float rayLen = 2.0f * radius + travel;
-            Vector3 wheelRayEnd = worldPos - radius * worldAxis;
-            Segment wheelRay = new Segment(wheelRayEnd + rayLen * worldAxis, -rayLen * worldAxis);
 
-            //Assert(PhysicsSystem.CurrentPhysicsSystem);
-            CollisionSystem collSystem = PhysicsSystem.CurrentPhysicsSystem.CollisionSystem;
-
-            //Assert(collSystem);
-            int numRaysUse = System.Math.Min(numRays, maxNumRays);
-
-            // adjust the start position of the ray - divide the wheel into numRays+2 
-            // rays, but don't use the first/last.
-            float deltaFwd = 2.0f * radius / (numRaysUse + 1);
-            float deltaFwdStart = deltaFwd;
+            var rayLen = 2.0f * Radius + _travel;
+            var wheelRayEnd = worldPos - Radius * worldAxis;
+            var wheelRay = new Segment(wheelRayEnd + rayLen * worldAxis, -rayLen * worldAxis);
 
 
-            lastOnFloor = false;
-            int bestIRay = 0;
+            var collSystem = PhysicsSystem.CurrentPhysicsSystem.CollisionSystem;
+
+
+            var numRaysUse = System.Math.Min(_numRays, MaxNumRays);
+
+
+            var deltaFwd = 2.0f * Radius / (numRaysUse + 1);
+            var deltaFwdStart = deltaFwd;
+
+
+            OnFloor = false;
+            var bestIRay = 0;
             int iRay;
 
-            for (iRay = 0; iRay < numRaysUse; ++iRay) {
-                fracs[iRay] = float.MaxValue; //SCALAR_HUGE;
-                // work out the offset relative to the middle ray
-                float distFwd = deltaFwdStart + iRay * deltaFwd - radius;
-                //float zOffset = mRadius * (1.0f - CosDeg(90.0f * (distFwd / mRadius)));
-                float zOffset = radius * (1.0f - (float) System.Math.Cos(MathHelper.ToRadians(90.0f * (distFwd / radius))));
+            for (iRay = 0; iRay < numRaysUse; ++iRay)
+            {
+                _fracs[iRay] = float.MaxValue;
 
-                segments[iRay] = wheelRay;
-                segments[iRay].Origin += distFwd * wheelFwd + zOffset * wheelUp;
+                var distFwd = deltaFwdStart + iRay * deltaFwd - Radius;
 
-                if (collSystem.SegmentIntersect(out fracs[iRay], out otherSkins[iRay], out groundPositions[iRay], out groundNormals[iRay], segments[iRay], pred)) {
-                    lastOnFloor = true;
+                var zOffset = Radius * (1.0f - (float) System.Math.Cos(MathHelper.ToRadians(90.0f * (distFwd / Radius))));
 
-                    if (fracs[iRay] < fracs[bestIRay]) bestIRay = iRay;
+                _segments[iRay] = wheelRay;
+                _segments[iRay].Origin += distFwd * wheelFwd + zOffset * wheelUp;
+
+                if (collSystem.SegmentIntersect(out _fracs[iRay], out _otherSkins[iRay], out _groundPositions[iRay], out _groundNormals[iRay], _segments[iRay], _pred))
+                {
+                    OnFloor = true;
+
+                    if (_fracs[iRay] < _fracs[bestIRay]) bestIRay = iRay;
                 }
             }
 
 
-            if (!lastOnFloor) return false;
+            if (!OnFloor) return false;
 
-            //Assert(bestIRay < numRays);
 
-            // use the best one
-            Vector3 groundPos = groundPositions[bestIRay];
-            float frac = fracs[bestIRay];
-            CollisionSkin otherSkin = otherSkins[bestIRay];
+            var groundPos = _groundPositions[bestIRay];
+            var frac = _fracs[bestIRay];
+            var otherSkin = _otherSkins[bestIRay];
 
-            //  const Vector3 groundNormal = (worldPos - segments[bestIRay].GetEnd()).NormaliseSafe();
-            //  const Vector3 groundNormal = groundNormals[bestIRay];
 
-            Vector3 groundNormal = worldAxis;
+            var groundNormal = worldAxis;
 
-            if (numRaysUse > 1) {
+            if (numRaysUse > 1)
+            {
                 for (iRay = 0; iRay < numRaysUse; ++iRay)
-                    if (fracs[iRay] <= 1.0f)
-                        groundNormal += (1.0f - fracs[iRay]) * (worldPos - segments[iRay].GetEnd());
+                    if (_fracs[iRay] <= 1.0f)
+                        groundNormal += (1.0f - _fracs[iRay]) * (worldPos - _segments[iRay].GetEnd());
 
                 JiggleMath.NormalizeSafe(ref groundNormal);
-            } else { groundNormal = groundNormals[bestIRay]; }
+            }
+            else
+            {
+                groundNormal = _groundNormals[bestIRay];
+            }
 
-            //Assert(otherSkin);
-            Body worldBody = otherSkin.Owner;
 
-            displacement = rayLen * (1.0f - frac);
-            displacement = MathHelper.Clamp(displacement, 0, travel);
+            var worldBody = otherSkin.Owner;
 
-            float displacementForceMag = displacement * spring;
+            Displacement = rayLen * (1.0f - frac);
+            Displacement = MathHelper.Clamp(Displacement, 0, _travel);
 
-            // reduce force when suspension is par to ground
-            displacementForceMag *= Vector3.Dot(groundNormals[bestIRay], worldAxis);
+            var displacementForceMag = Displacement * _spring;
 
-            // apply damping
-            float dampingForceMag = upSpeed * damping;
 
-            float totalForceMag = displacementForceMag + dampingForceMag;
+            displacementForceMag *= Vector3.Dot(_groundNormals[bestIRay], worldAxis);
+
+
+            var dampingForceMag = _upSpeed * _damping;
+
+            var totalForceMag = displacementForceMag + dampingForceMag;
 
             if (totalForceMag < 0.0f) totalForceMag = 0.0f;
 
-            Vector3 extraForce = totalForceMag * worldAxis;
+            var extraForce = totalForceMag * worldAxis;
 
             force += extraForce;
 
-            // side-slip friction and drive force. Work out wheel- and floor-relative coordinate frame
-            Vector3 groundUp = groundNormal;
-            Vector3 groundLeft = Vector3.Cross(groundNormal, wheelFwd);
+
+            var groundUp = groundNormal;
+            var groundLeft = Vector3.Cross(groundNormal, wheelFwd);
             JiggleMath.NormalizeSafe(ref groundLeft);
 
-            Vector3 groundFwd = Vector3.Cross(groundLeft, groundUp);
+            var groundFwd = Vector3.Cross(groundLeft, groundUp);
 
-            Vector3 wheelPointVel = carBody.Velocity + Vector3.Cross(carBody.AngularVelocity, Vector3.TransformNormal(pos, carBody.Orientation)); // * mPos);
+            var wheelPointVel = carBody.Velocity + Vector3.Cross(carBody.AngularVelocity, Vector3.TransformNormal(Pos, carBody.Orientation));
 
-            Vector3 rimVel = angVel * Vector3.Cross(wheelLeft, groundPos - worldPos);
+            var rimVel = _angVel * Vector3.Cross(wheelLeft, groundPos - worldPos);
             wheelPointVel += rimVel;
 
-            // if sitting on another body then adjust for its velocity.
-            if (worldBody != null) {
-                Vector3 worldVel = worldBody.Velocity + Vector3.Cross(worldBody.AngularVelocity, groundPos - worldBody.Position);
+
+            if (worldBody != null)
+            {
+                var worldVel = worldBody.Velocity + Vector3.Cross(worldBody.AngularVelocity, groundPos - worldBody.Position);
 
                 wheelPointVel -= worldVel;
             }
 
-            // sideways forces
-            float noslipVel = 0.2f;
-            float slipVel = 0.4f;
-            float slipFactor = 0.7f;
+
+            var noslipVel = 0.2f;
+            var slipVel = 0.4f;
+            var slipFactor = 0.7f;
 
             float smallVel = 3;
-            float friction = sideFriction;
+            var friction = _sideFriction;
 
-            float sideVel = Vector3.Dot(wheelPointVel, groundLeft);
+            var sideVel = Vector3.Dot(wheelPointVel, groundLeft);
 
             if (sideVel > slipVel || sideVel < -slipVel)
                 friction *= slipFactor;
-            else if (sideVel > noslipVel || sideVel < -noslipVel) friction *= 1.0f - (1.0f - slipFactor) * (System.Math.Abs(sideVel) - noslipVel) / (slipVel - noslipVel);
+            else if (sideVel > noslipVel || sideVel < -noslipVel)
+                friction *= 1.0f - (1.0f - slipFactor) * (System.Math.Abs(sideVel) - noslipVel) / (slipVel - noslipVel);
 
             if (sideVel < 0.0f) friction *= -1.0f;
 
             if (System.Math.Abs(sideVel) < smallVel) friction *= System.Math.Abs(sideVel) / smallVel;
 
-            float sideForce = -friction * totalForceMag;
+            var sideForce = -friction * totalForceMag;
 
             extraForce = sideForce * groundLeft;
             force += extraForce;
 
-            // fwd/back forces
-            friction = fwdFriction;
-            float fwdVel = Vector3.Dot(wheelPointVel, groundFwd);
+
+            friction = _fwdFriction;
+            var fwdVel = Vector3.Dot(wheelPointVel, groundFwd);
 
             if (fwdVel > slipVel || fwdVel < -slipVel)
                 friction *= slipFactor;
-            else if (fwdVel > noslipVel || fwdVel < -noslipVel) friction *= 1.0f - (1.0f - slipFactor) * (System.Math.Abs(fwdVel) - noslipVel) / (slipVel - noslipVel);
+            else if (fwdVel > noslipVel || fwdVel < -noslipVel)
+                friction *= 1.0f - (1.0f - slipFactor) * (System.Math.Abs(fwdVel) - noslipVel) / (slipVel - noslipVel);
 
             if (fwdVel < 0.0f) friction *= -1.0f;
 
             if (System.Math.Abs(fwdVel) < smallVel) friction *= System.Math.Abs(fwdVel) / smallVel;
 
-            float fwdForce = -friction * totalForceMag;
+            var fwdForce = -friction * totalForceMag;
 
             extraForce = fwdForce * groundFwd;
             force += extraForce;
 
-            //if (!force.IsSensible())
-            //{
-            //  TRACE_FILE_IF(ONCE_1)
-            //    TRACE("Bad force in car wheel\n");
-            //  return true;
-            //}
 
-            // fwd force also spins the wheel
-            Vector3 wheelCentreVel = carBody.Velocity + Vector3.Cross(carBody.AngularVelocity, Vector3.TransformNormal(pos, carBody.Orientation)); // * mPos);
+            var wheelCentreVel = carBody.Velocity + Vector3.Cross(carBody.AngularVelocity, Vector3.TransformNormal(Pos, carBody.Orientation));
 
-            angVelForGrip = Vector3.Dot(wheelCentreVel, groundFwd) / radius;
-            torque += -fwdForce * radius;
+            _angVelForGrip = Vector3.Dot(wheelCentreVel, groundFwd) / Radius;
+            _torque += -fwdForce * Radius;
 
-            // add force to car
+
             carBody.AddWorldForce(force, groundPos);
 
-            //if (float.IsNaN(force.X))
-            //    while(true){}
-            //System.Diagnostics.Debug.WriteLine(force.ToString());
 
-            // add force to the world
-            if (worldBody != null && !worldBody.Immovable) {
-                // todo get the position in the right place...
-                // also limit the velocity that this force can produce by looking at the 
-                // mass/inertia of the other object
-                float maxOtherBodyAcc = 500.0f;
-                float maxOtherBodyForce = maxOtherBodyAcc * worldBody.Mass;
+            if (worldBody != null && !worldBody.Immovable)
+            {
+                var maxOtherBodyAcc = 500.0f;
+                var maxOtherBodyForce = maxOtherBodyAcc * worldBody.Mass;
 
-                if (force.LengthSquared() > maxOtherBodyForce * maxOtherBodyForce) force *= maxOtherBodyForce / force.Length();
+                if (force.LengthSquared() > maxOtherBodyForce * maxOtherBodyForce)
+                    force *= maxOtherBodyForce / force.Length();
 
                 worldBody.AddWorldForce(-force, groundPos);
             }
@@ -308,123 +258,55 @@ namespace JigLibX.Vehicles {
             return true;
         }
 
-        /// <summary>
-        /// Updates the rotational state etc
-        /// </summary>
-        /// <param name="dt"></param>
-        public void Update(float dt) {
+        public void Update(float dt)
+        {
             if (dt <= 0.0f) return;
 
-            float origAngVel = angVel;
-            upSpeed = (displacement - lastDisplacement) / System.Math.Max(dt, JiggleMath.Epsilon);
+            var origAngVel = _angVel;
+            _upSpeed = (Displacement - _lastDisplacement) / System.Math.Max(dt, JiggleMath.Epsilon);
 
-            if (locked) {
-                angVel = 0;
-                torque = 0;
-            } else {
-                angVel += torque * dt / inertia;
-                torque = 0;
+            if (Lock)
+            {
+                _angVel = 0;
+                _torque = 0;
+            }
+            else
+            {
+                _angVel += _torque * dt / _inertia;
+                _torque = 0;
 
-                // prevent friction from reversing dir - todo do this better
-                // by limiting the torque
-                if (origAngVel > angVelForGrip && angVel < angVelForGrip || origAngVel < angVelForGrip && angVel > angVelForGrip) angVel = angVelForGrip;
 
-                angVel += driveTorque * dt / inertia;
-                driveTorque = 0;
+                if (origAngVel > _angVelForGrip && _angVel < _angVelForGrip || origAngVel < _angVelForGrip && _angVel > _angVelForGrip) _angVel = _angVelForGrip;
+
+                _angVel += _driveTorque * dt / _inertia;
+                _driveTorque = 0;
 
                 float maxAngVel = 200;
-                angVel = MathHelper.Clamp(angVel, -maxAngVel, maxAngVel);
+                _angVel = MathHelper.Clamp(_angVel, -maxAngVel, maxAngVel);
 
-                axisAngle += MathHelper.ToDegrees(dt * angVel);
+                AxisAngle += MathHelper.ToDegrees(dt * _angVel);
             }
         }
 
-        /// <summary>
-        /// Get steering angle in degrees
-        /// </summary>
-        public float SteerAngle {
-            get { return steerAngle; }
-            set { steerAngle = value; }
+        public float SteerAngle { get; set; }
+
+        public bool Lock { get; set; }
+
+        public void AddTorque(float torque)
+        {
+            _driveTorque += torque;
         }
 
-        /// <summary>
-        /// Lock/unlock the wheel
-        /// </summary>
-        public bool Lock {
-            get { return locked; }
-            set { locked = value; }
-        }
+        public Vector3 Pos { get; private set; }
 
-        /// <summary>
-        /// Power
-        /// </summary>
-        /// <param name="torque"></param>
-        public void AddTorque(float torque) {
-            driveTorque += torque;
-        }
+        public Vector3 LocalAxisUp { get; private set; }
 
-        /// <summary>
-        /// The basic origin position
-        /// </summary>
-        public Vector3 Pos {
-            get { return pos; }
-        }
+        public float Radius { get; private set; }
 
-        /// <summary>
-        /// The suspension axis in the car's frame
-        /// </summary>
-        public Vector3 LocalAxisUp {
-            get { return axisUp; }
-        }
+        public float Displacement { get; private set; }
 
-        /// <summary>
-        /// Wheel radius
-        /// </summary>
-        public float Radius {
-            get { return radius; }
-        }
+        public float AxisAngle { get; private set; }
 
-        /// <summary>
-        /// The displacement along our up axis
-        /// </summary>
-        public float Displacement {
-            get { return displacement; }
-        }
-
-        /// <summary>
-        /// Gets axisAngle
-        /// </summary>
-        public float AxisAngle {
-            get { return axisAngle; }
-        }
-
-        /// <summary>
-        /// Gets lastOnFloor
-        /// </summary>
-        public bool OnFloor {
-            get { return lastOnFloor; }
-        }
-    }
-
-    /// Predicate for the wheel->world intersection test
-    internal class WheelPred : CollisionSkinPredicate1 {
-        private CollisionSkin mSkin;
-
-        /// <summary>
-        /// WheelPred
-        /// </summary>
-        /// <param name="carSkin"></param>
-        public WheelPred(CollisionSkin carSkin) {
-            mSkin = carSkin;
-        }
-
-        /// <summary>
-        /// ConsiderSkin
-        /// </summary>
-        /// <param name="skin"></param>
-        /// <returns>bool</returns>
-        public override bool ConsiderSkin(CollisionSkin skin) {
-            return skin.ID != mSkin.ID;
-        }
+        public bool OnFloor { get; private set; }
     }
 }

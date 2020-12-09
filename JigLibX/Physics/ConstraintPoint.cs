@@ -1,11 +1,10 @@
 ﻿using Microsoft.Xna.Framework;
 using JigLibX.Math;
 
-namespace JigLibX.Physics {
-    /// <summary>
-    /// Constraints a point on one body to be fixed to a point on another body
-    /// </summary>
-    public class ConstraintPoint : Constraint {
+namespace JigLibX.Physics
+{
+    public class ConstraintPoint : Constraint
+    {
         private const float mMaxVelMag = 20.0f;
         private const float minVelForProcessing = 0.01f;
 
@@ -16,40 +15,22 @@ namespace JigLibX.Physics {
         private float allowedDistance;
         private float timescale;
 
-        // some values that we calculate once in pre_apply
-        private Vector3 worldPos; //< average of the two joint positions
-        private Vector3 R0; //< position relative to body 0 (in world space)
+        private Vector3 worldPos;
+        private Vector3 R0;
         private Vector3 R1;
-        private Vector3 vrExtra; //< extra vel for restoring deviation
+        private Vector3 vrExtra;
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        public ConstraintPoint() { }
+        public ConstraintPoint()
+        {
+        }
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="body0"></param>
-        /// <param name="body0Pos"></param>
-        /// <param name="body1"></param>
-        /// <param name="body1Pos"></param>
-        /// <param name="allowedDistance"></param>
-        /// <param name="timescale"></param>
-        public ConstraintPoint(Body body0, Vector3 body0Pos, Body body1, Vector3 body1Pos, float allowedDistance, float timescale) {
+        public ConstraintPoint(Body body0, Vector3 body0Pos, Body body1, Vector3 body1Pos, float allowedDistance, float timescale)
+        {
             Initialise(body0, body0Pos, body1, body1Pos, allowedDistance, timescale);
         }
 
-        /// <summary>
-        /// Initialise
-        /// </summary>
-        /// <param name="body0"></param>
-        /// <param name="body0Pos"></param>
-        /// <param name="body1"></param>
-        /// <param name="body1Pos"></param>
-        /// <param name="allowedDistance"></param>
-        /// <param name="timescale"></param>
-        public void Initialise(Body body0, Vector3 body0Pos, Body body1, Vector3 body1Pos, float allowedDistance, float timescale) {
+        public void Initialise(Body body0, Vector3 body0Pos, Body body1, Vector3 body1Pos, float allowedDistance, float timescale)
+        {
             this.body0Pos = body0Pos;
             this.body1Pos = body1Pos;
             this.body0 = body0;
@@ -60,35 +41,29 @@ namespace JigLibX.Physics {
 
             if (timescale < JiggleMath.Epsilon) timescale = JiggleMath.Epsilon;
 
-            if (body0 != null) body0.AddConstraint(this);
-            if (body1 != null) body1.AddConstraint(this);
+            body0?.AddConstraint(this);
+            body1?.AddConstraint(this);
         }
 
-        /// <summary>
-        /// PreApply
-        /// </summary>
-        /// <param name="dt"></param>
-        public override void PreApply(float dt) {
+        public override void PreApply(float dt)
+        {
             Satisfied = false;
 
-            Vector3.TransformNormal(ref body0Pos, ref body0.transform.Orientation, out R0);
+            Vector3.TransformNormal(ref body0Pos, ref body0.Transform.Orientation, out R0);
 
-            Vector3.TransformNormal(ref body1Pos, ref body1.transform.Orientation, out R1);
+            Vector3.TransformNormal(ref body1Pos, ref body1.Transform.Orientation, out R1);
 
-            Vector3 worldPos0;
-            Vector3.Add(ref body0.transform.Position, ref R0, out worldPos0);
+            Vector3.Add(ref body0.Transform.Position, ref R0, out var worldPos0);
 
-            Vector3 worldPos1;
-            Vector3.Add(ref body1.transform.Position, ref R1, out worldPos1);
+            Vector3.Add(ref body1.Transform.Position, ref R1, out var worldPos1);
 
             Vector3.Add(ref worldPos0, ref worldPos1, out worldPos);
             Vector3.Multiply(ref worldPos, 0.5f, out worldPos);
 
-            // add a "correction" based on the deviation of point 0
-            Vector3 deviation;
-            Vector3.Subtract(ref worldPos0, ref worldPos1, out deviation);
 
-            float deviationAmount = deviation.Length();
+            Vector3.Subtract(ref worldPos0, ref worldPos1, out var deviation);
+
+            var deviationAmount = deviation.Length();
 
             if (deviationAmount > allowedDistance)
                 Vector3.Multiply(ref deviation, (deviationAmount - allowedDistance) / (deviationAmount * System.Math.Max(timescale, dt)), out vrExtra);
@@ -96,65 +71,53 @@ namespace JigLibX.Physics {
                 vrExtra = Vector3.Zero;
         }
 
-        /// <summary>
-        /// Apply
-        /// </summary>
-        /// <param name="dt"></param>
-        /// <returns>bool</returns>
-        public override bool Apply(float dt) {
+        public override bool Apply(float dt)
+        {
             Satisfied = true;
 
-            bool body0FrozenPre = !body0.IsActive;
-            bool body1FrozenPre = !body1.IsActive;
+            var body0FrozenPre = !body0.IsActive;
+            var body1FrozenPre = !body1.IsActive;
 
-            //  if (body0FrozenPre && body1FrozenPre)
-            //    return false;
 
-            Vector3 currentVel0;
-            Vector3.Cross(ref body0.transformRate.AngularVelocity, ref R0, out currentVel0);
-            Vector3.Add(ref currentVel0, ref body0.transformRate.Velocity, out currentVel0);
+            Vector3.Cross(ref body0.TransformRate.AngularVelocity, ref R0, out var currentVel0);
+            Vector3.Add(ref currentVel0, ref body0.TransformRate.Velocity, out currentVel0);
 
-            Vector3 currentVel1;
-            Vector3.Cross(ref body1.transformRate.AngularVelocity, ref R1, out currentVel1);
-            Vector3.Add(ref currentVel1, ref body1.transformRate.Velocity, out currentVel1);
+            Vector3.Cross(ref body1.TransformRate.AngularVelocity, ref R1, out var currentVel1);
+            Vector3.Add(ref currentVel1, ref body1.TransformRate.Velocity, out currentVel1);
 
-            // add a "correction" based on the deviation of point 0
-            Vector3 Vr;
-            Vector3.Add(ref vrExtra, ref currentVel0, out Vr);
+
+            Vector3.Add(ref vrExtra, ref currentVel0, out var Vr);
             Vector3.Subtract(ref Vr, ref currentVel1, out Vr);
 
-            float normalVel = Vr.Length();
+            var normalVel = Vr.Length();
 
             if (normalVel < minVelForProcessing) return false;
 
-            // limit things
-            if (normalVel > mMaxVelMag) {
+
+            if (normalVel > mMaxVelMag)
+            {
                 Vector3.Multiply(ref Vr, mMaxVelMag / normalVel, out Vr);
                 normalVel = mMaxVelMag;
             }
 
-            Vector3 N;
-            Vector3.Divide(ref Vr, normalVel, out N);
+            Vector3.Divide(ref Vr, normalVel, out var N);
 
-            float numerator = -normalVel;
+            var numerator = -normalVel;
 
-            Vector3 v1;
-            float f1, f2;
-            Vector3.Cross(ref R0, ref N, out v1);
+            Vector3.Cross(ref R0, ref N, out var v1);
             Vector3.TransformNormal(ref v1, ref body0.worldInvInertia, out v1);
             Vector3.Cross(ref v1, ref R0, out v1);
-            Vector3.Dot(ref N, ref v1, out f1);
+            Vector3.Dot(ref N, ref v1, out var f1);
             Vector3.Cross(ref R1, ref N, out v1);
             Vector3.TransformNormal(ref v1, ref body1.worldInvInertia, out v1);
             Vector3.Cross(ref v1, ref R1, out v1);
-            Vector3.Dot(ref N, ref v1, out f2);
+            Vector3.Dot(ref N, ref v1, out var f2);
 
-            float denominator = body0.InverseMass + body1.InverseMass + f1 + f2;
+            var denominator = body0.InverseMass + body1.InverseMass + f1 + f2;
 
             if (denominator < JiggleMath.Epsilon) return false;
 
-            Vector3 normalImpulse;
-            Vector3.Multiply(ref N, numerator / denominator, out normalImpulse);
+            Vector3.Multiply(ref N, numerator / denominator, out var normalImpulse);
 
             if (!body0.Immovable) body0.ApplyWorldImpulse(normalImpulse, worldPos);
 
@@ -168,10 +131,8 @@ namespace JigLibX.Physics {
             return true;
         }
 
-        /// <summary>
-        /// Destroy - sets body0 and body1 to null; calls DisableConstraint()
-        /// </summary>
-        public override void Destroy() {
+        public override void Destroy()
+        {
             body0 = null;
             body1 = null;
 

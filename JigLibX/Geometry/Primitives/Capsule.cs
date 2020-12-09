@@ -1,165 +1,117 @@
 using JigLibX.Math;
 using Microsoft.Xna.Framework;
 
-namespace JigLibX.Geometry.Primitives {
-    /// <summary>
-    /// Defines a capsule that is orientated along its body x direction, with
-    /// its start at its position.
-    /// </summary>
-    public class Capsule : Primitive {
-        private float length;
-        private float radius;
-
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="pos"></param>
-        /// <param name="orient"></param>
-        /// <param name="radius"></param>
-        /// <param name="length"></param>
-        public Capsule(Vector3 pos, Matrix orient, float radius, float length) : base((int) PrimitiveType.Capsule) {
+namespace JigLibX.Geometry.Primitives
+{
+    public class Capsule : Primitive
+    {
+        public Capsule(Vector3 pos, Matrix orient, float radius, float length) : base((int) PrimitiveType.Capsule)
+        {
             transform = new Transform(pos, orient);
-            this.length = length;
-            this.radius = radius;
+            Length = length;
+            Radius = radius;
         }
 
-        /// <summary>
-        /// SegmentIntersect
-        /// </summary>
-        /// <param name="frac"></param>
-        /// <param name="pos"></param>
-        /// <param name="normal"></param>
-        /// <param name="seg"></param>
-        /// <returns>bool</returns>
-        public override bool SegmentIntersect(out float frac, out Vector3 pos, out Vector3 normal, Segment seg) {
-            bool result = Intersection.SegmentCapsuleIntersection(out frac, seg, this);
+        public override bool SegmentIntersect(out float frac, out Vector3 pos, out Vector3 normal, Segment seg)
+        {
+            var result = Intersection.SegmentCapsuleIntersection(out frac, seg, this);
 
-            if (result) {
+            if (result)
+            {
                 pos = seg.GetPoint(frac);
                 normal = pos - transform.Position;
                 normal -= Vector3.Dot(normal, transform.Orientation.Backward) * transform.Orientation.Backward;
                 JiggleMath.NormalizeSafe(ref normal);
-            } else { pos = normal = Vector3.Zero; }
+            }
+            else
+            {
+                pos = normal = Vector3.Zero;
+            }
 
             return result;
         }
 
-        /// <summary>
-        /// Clone
-        /// </summary>
-        /// <returns>Primitive</returns>
-        public override Primitive Clone() {
-            return new Capsule(transform.Position, transform.Orientation, radius, length);
+        public override Primitive Clone()
+        {
+            return new Capsule(transform.Position, transform.Orientation, Radius, Length);
         }
 
-        /// <summary>
-        /// Gets or Sets transform
-        /// </summary>
-        public override Transform Transform {
-            get { return transform; }
-            set { transform = value; }
+        public override Transform Transform
+        {
+            get => transform;
+            set => transform = value;
         }
 
-        /// <summary>
-        /// Gets or Sets transform.Position
-        /// </summary>
-        public Vector3 Position {
-            get { return transform.Position; }
-            set { transform.Position = value; }
+        public Vector3 Position
+        {
+            get => transform.Position;
+            set => transform.Position = value;
         }
 
-        /// <summary>
-        /// GetEnd
-        /// </summary>
-        /// <returns>Vector3</returns>
-        public Vector3 GetEnd() {
-            return transform.Position + length * transform.Orientation.Backward;
+        public Vector3 GetEnd()
+        {
+            return transform.Position + Length * transform.Orientation.Backward;
         }
 
-        /// <summary>
-        /// Gets or Sets transform.Orientation
-        /// </summary>
-        public Matrix Orientation {
-            get { return transform.Orientation; }
-            set { transform.Orientation = value; }
+        public Matrix Orientation
+        {
+            get => transform.Orientation;
+            set => transform.Orientation = value;
         }
 
-        /// <summary>
-        /// Gets or Sets length
-        /// </summary>
-        public float Length {
-            get { return length; }
-            set { length = value; }
+        public float Length { get; set; }
+
+        public float Radius { get; set; }
+
+        public override float GetVolume()
+        {
+            return 4.0f / 3.0f * MathHelper.Pi * Radius * Radius * Radius + Length * MathHelper.Pi * Radius * Radius;
         }
 
-        /// <summary>
-        /// Gets or Sets radius
-        /// </summary>
-        public float Radius {
-            get { return radius; }
-            set { radius = value; }
+        public override float GetSurfaceArea()
+        {
+            return 4.0f * MathHelper.Pi * Radius * Radius + Length * 2.0f * MathHelper.Pi * Radius;
         }
 
-        /// <summary>
-        /// GetVolume
-        /// </summary>
-        /// <returns>float</returns>
-        public override float GetVolume() {
-            return 4.0f / 3.0f * MathHelper.Pi * radius * radius * radius + length * MathHelper.Pi * radius * radius;
-        }
-
-        /// <summary>
-        /// GetSurfaceArea
-        /// </summary>
-        /// <returns>float</returns>
-        public override float GetSurfaceArea() {
-            return 4.0f * MathHelper.Pi * radius * radius + length * 2.0f * MathHelper.Pi * radius;
-        }
-
-        /// <summary>
-        /// GetMassPropertiees
-        /// </summary>
-        /// <param name="primitiveProperties"></param>
-        /// <param name="mass"></param>
-        /// <param name="centerOfMass"></param>
-        /// <param name="inertiaTensor"></param>
-        public override void GetMassProperties(PrimitiveProperties primitiveProperties, out float mass, out Vector3 centerOfMass, out Matrix inertiaTensor) {
-            if (primitiveProperties.MassType == PrimitiveProperties.MassTypeEnum.Mass) { mass = primitiveProperties.MassOrDensity; } else {
+        public override void GetMassProperties(PrimitiveProperties primitiveProperties, out float mass, out Vector3 centerOfMass, out Matrix inertiaTensor)
+        {
+            if (primitiveProperties.MassType == PrimitiveProperties.MassTypeEnum.Mass)
+            {
+                mass = primitiveProperties.MassOrDensity;
+            }
+            else
+            {
                 if (primitiveProperties.MassDistribution == PrimitiveProperties.MassDistributionEnum.Solid)
                     mass = GetVolume() * primitiveProperties.MassOrDensity;
                 else
                     mass = GetSurfaceArea() * primitiveProperties.MassOrDensity;
             }
 
-            centerOfMass = transform.Position + 0.5f * length * transform.Orientation.Backward;
+            centerOfMass = transform.Position + 0.5f * Length * transform.Orientation.Backward;
 
-            // todo check solid/shell
-            // first cylinder
-            float cylinderMass = mass * MathHelper.Pi * radius * radius * length / GetVolume();
-            float Ixx = 0.5f * cylinderMass * radius * radius;
-            float Iyy = 0.25f * cylinderMass * radius * radius + 1.0f / 12.0f * cylinderMass * length * length;
-            float Izz = Iyy;
-            // add ends
-            float endMass = mass - cylinderMass;
-            Ixx += 0.4f * endMass * radius * radius;
-            Iyy += 0.4f * endMass * radius * radius + endMass * (0.5f * length) * (0.5f * length);
-            Izz += 0.4f * endMass * radius * radius + endMass * (0.5f * length) * (0.5f * length);
+
+            var cylinderMass = mass * MathHelper.Pi * Radius * Radius * Length / GetVolume();
+            var Ixx = 0.5f * cylinderMass * Radius * Radius;
+            var Iyy = 0.25f * cylinderMass * Radius * Radius + 1.0f / 12.0f * cylinderMass * Length * Length;
+            var Izz = Iyy;
+
+            var endMass = mass - cylinderMass;
+            Ixx += 0.4f * endMass * Radius * Radius;
+            Iyy += 0.4f * endMass * Radius * Radius + endMass * (0.5f * Length) * (0.5f * Length);
+            Izz += 0.4f * endMass * Radius * Radius + endMass * (0.5f * Length) * (0.5f * Length);
 
             inertiaTensor = Matrix.Identity;
             inertiaTensor.M11 = Ixx;
             inertiaTensor.M22 = Iyy;
             inertiaTensor.M33 = Izz;
 
-            // transform - e.g. see p664 of Physics-Based Animation
-            // todo is the order correct here? Does it matter?
 
-            // Calculate the tensor in a frame at the CoM, but aligned with the world axes
             inertiaTensor = transform.Orientation * inertiaTensor * Matrix.Transpose(transform.Orientation);
 
-            // Transfer of axe theorem
-            inertiaTensor.M11 = inertiaTensor.M11 + mass * (centerOfMass.Y * centerOfMass.Y + centerOfMass.Z * centerOfMass.Z);
-            inertiaTensor.M22 = inertiaTensor.M22 + mass * (centerOfMass.Z * centerOfMass.Z + centerOfMass.X * centerOfMass.X);
-            inertiaTensor.M33 = inertiaTensor.M33 + mass * (centerOfMass.X * centerOfMass.X + centerOfMass.Y * centerOfMass.Y);
+
+            inertiaTensor.M11 += mass * (centerOfMass.Y * centerOfMass.Y + centerOfMass.Z * centerOfMass.Z);
+            inertiaTensor.M22 += mass * (centerOfMass.Z * centerOfMass.Z + centerOfMass.X * centerOfMass.X);
+            inertiaTensor.M33 += mass * (centerOfMass.X * centerOfMass.X + centerOfMass.Y * centerOfMass.Y);
 
             inertiaTensor.M12 = inertiaTensor.M21 = inertiaTensor.M12 - mass * centerOfMass.X * centerOfMass.Y;
             inertiaTensor.M23 = inertiaTensor.M32 = inertiaTensor.M23 - mass * centerOfMass.Y * centerOfMass.Z;
