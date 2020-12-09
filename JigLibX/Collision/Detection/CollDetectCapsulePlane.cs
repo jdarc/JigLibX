@@ -38,12 +38,7 @@ namespace JigLibX.Collision.Detection
 
             unsafe
             {
-#if USE_STACKALLOC
                 var collPts = stackalloc SmallCollPointInfo[MaxLocalStackScpi];
-#else
-                var collPtArray = SCPIStackAlloc();
-                fixed (SmallCollPointInfo* collPts = collPtArray)
-#endif
                 {
                     var numCollPts = 0;
 
@@ -91,9 +86,6 @@ namespace JigLibX.Collision.Detection
                             collisionFunctor.CollisionNotify(ref info, ref oldPlane.normal, collPts, numCollPts);
                     }
                 }
-#if !USE_STACKALLOC
-                FreeStackAlloc(collPtArray);
-#endif
             }
         }
     }

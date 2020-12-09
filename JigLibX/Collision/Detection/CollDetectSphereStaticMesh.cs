@@ -21,19 +21,10 @@ namespace JigLibX.Collision.Detection
 
             unsafe
             {
-#if USE_STACKALLOC
                 var collPts = stackalloc SmallCollPointInfo[MaxLocalStackScpi];
                 var potentialTriangles = stackalloc int[MaxLocalStackTris];
                 {
                     {
-#else
-                var collPtArray = SCPIStackAlloc();
-                fixed (SmallCollPointInfo* collPts = collPtArray)
-                {
-                    var potTriArray = IntStackAlloc();
-                    fixed (int* potentialTriangles = potTriArray)
-                    {
-#endif
                         var numCollPts = 0;
 
                         var collNormal = Vector3.Zero;
@@ -90,16 +81,8 @@ namespace JigLibX.Collision.Detection
                             JiggleMath.NormalizeSafe(ref collNormal);
                             collisionFunctor.CollisionNotify(ref info, ref collNormal, collPts, numCollPts);
                         }
-#if USE_STACKALLOC
                     }
                }
-#else
-                        FreeStackAlloc(potTriArray);
-                    }
-
-                    FreeStackAlloc(collPtArray);
-                }
-#endif
             }
         }
 
@@ -143,19 +126,10 @@ namespace JigLibX.Collision.Detection
 
                 unsafe
                 {
-#if USE_STACKALLOC
                     var collPts = stackalloc SmallCollPointInfo[MaxLocalStackScpi];
                     var potentialTriangles = stackalloc int[MaxLocalStackTris];
                     {
                         {
-#else
-                    var collPtArray = SCPIStackAlloc();
-                    fixed (SmallCollPointInfo* collPts = collPtArray)
-                    {
-                        var potTriArray = IntStackAlloc();
-                        fixed (int* potentialTriangles = potTriArray)
-                        {
-#endif
                             var numCollPts = 0;
 
                             var numTriangles = mesh.GetTrianglesIntersectingtAABox(potentialTriangles, MaxLocalStackTris, ref bb);
@@ -228,16 +202,8 @@ namespace JigLibX.Collision.Detection
                                 collisionFunctor.CollisionNotify(ref info, ref collNormal, collPts, numCollPts);
                             }
                         }
-#if USE_STACKALLOC
                     }
                }
-#else
-                        FreeStackAlloc(potTriArray);
-                    }
-
-                    FreeStackAlloc(collPtArray);
-                }
-#endif
             }
         }
 

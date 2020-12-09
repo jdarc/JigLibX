@@ -107,14 +107,8 @@ namespace JigLibX.Geometry.Primitives
 
             unsafe
             {
-#if USE_STACKALLOC
                 var potentialTriangles = stackalloc int[DetectFunctor.MaxLocalStackTris];
                 {
-#else
-                var potTriArray = DetectFunctor.IntStackAlloc();
-                fixed (int* potentialTriangles = potTriArray)
-                {
-#endif
                     var numTriangles = GetTrianglesIntersectingtAABox(potentialTriangles, DetectFunctor.MaxLocalStackTris, ref segBox);
 
                     pos = Vector3.Zero;
@@ -147,11 +141,7 @@ namespace JigLibX.Geometry.Primitives
                         // DetectFunctor.FreeStackAlloc(potTriArray);
                         return false;
                     }
-#if USE_STACKALLOC
                 }
-#else
-                }
-#endif
             }
         }
 
